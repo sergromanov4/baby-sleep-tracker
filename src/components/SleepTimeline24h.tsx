@@ -1,9 +1,9 @@
 // src/components/SleepTimeline24h.tsx
-"use client";
+'use client';
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from 'react';
 
-export type SleepType = "day" | "night";
+export type SleepType = 'day' | 'night';
 
 export type SleepSession = {
   id: string;
@@ -85,13 +85,10 @@ export default function SleepTimeline24h({
 }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const dayStart = useMemo(
-    () => startOfDay(selectedDate ?? new Date()).getTime(),
-    [selectedDate]
-  );
+  const dayStart = useMemo(() => startOfDay(selectedDate ?? new Date()).getTime(), [selectedDate]);
   const dayEnd = useMemo(
     () => endOfDayExclusive(selectedDate ?? new Date()).getTime(),
-    [selectedDate]
+    [selectedDate],
   );
 
   const segments = useMemo<Segment[]>(() => {
@@ -129,7 +126,7 @@ export default function SleepTimeline24h({
 
   const selected = useMemo(
     () => segments.find((x) => x.id === selectedId) ?? null,
-    [segments, selectedId]
+    [segments, selectedId],
   );
 
   // Hours marks: 0,3,6,9,12,15,18,21,24
@@ -144,9 +141,7 @@ export default function SleepTimeline24h({
     <div className={className}>
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-white/90">
-            Сон за день (00:00–24:00)
-          </div>
+          <div className="text-sm font-semibold text-white/90">Сон за день (00:00–24:00)</div>
 
           <button
             type="button"
@@ -165,37 +160,30 @@ export default function SleepTimeline24h({
           {/* Segments */}
           <div className="pointer-events-none absolute inset-0">
             {segments.map((seg) => {
-              const leftPct =
-                ((seg.startMsClamped - dayStart) / (dayEnd - dayStart)) * 100;
+              const leftPct = ((seg.startMsClamped - dayStart) / (dayEnd - dayStart)) * 100;
               const widthPct =
-                ((seg.endMsClamped - seg.startMsClamped) / (dayEnd - dayStart)) *
-                100;
+                ((seg.endMsClamped - seg.startMsClamped) / (dayEnd - dayStart)) * 100;
 
               const isSelected = seg.id === selectedId;
 
               // Colors: night = blue-ish, day = purple-ish
-              const base =
-                seg.type === "night"
-                  ? "bg-indigo-400/70"
-                  : "bg-violet-400/70";
+              const base = seg.type === 'night' ? 'bg-indigo-400/70' : 'bg-violet-400/70';
 
-              const activePulse = seg.isActive
-                ? "animate-pulse"
-                : "opacity-100";
+              const activePulse = seg.isActive ? 'animate-pulse' : 'opacity-100';
 
               const selectedRing = isSelected
-                ? "ring-2 ring-white/80 shadow-[0_0_0_4px_rgba(167,139,250,0.20)]"
-                : "ring-0";
+                ? 'ring-2 ring-white/80 shadow-[0_0_0_4px_rgba(167,139,250,0.20)]'
+                : 'ring-0';
 
               return (
                 <div
                   key={seg.id}
                   className={[
-                    "absolute top-1.5 h-9 rounded-lg",
+                    'absolute top-1.5 h-9 rounded-lg',
                     base,
                     activePulse,
                     selectedRing,
-                  ].join(" ")}
+                  ].join(' ')}
                   style={{
                     left: `${leftPct}%`,
                     width: `${widthPct}%`,
@@ -208,11 +196,9 @@ export default function SleepTimeline24h({
           {/* Click layer */}
           <div className="absolute inset-0 z-10">
             {segments.map((seg) => {
-              const leftPct =
-                ((seg.startMsClamped - dayStart) / (dayEnd - dayStart)) * 100;
+              const leftPct = ((seg.startMsClamped - dayStart) / (dayEnd - dayStart)) * 100;
               const widthPct =
-                ((seg.endMsClamped - seg.startMsClamped) / (dayEnd - dayStart)) *
-                100;
+                ((seg.endMsClamped - seg.startMsClamped) / (dayEnd - dayStart)) * 100;
               return (
                 <button
                   key={seg.id}
@@ -256,7 +242,7 @@ export default function SleepTimeline24h({
                   {formatRange(selected.startIso, selected.endIso)}
                 </div>
                 <div className="mt-0.5 text-xs text-white/60">
-                  {selected.type === "night" ? "Ночной сон" : "Дневной сон"}
+                  {selected.type === 'night' ? 'Ночной сон' : 'Дневной сон'}
                 </div>
               </div>
 
@@ -271,13 +257,13 @@ export default function SleepTimeline24h({
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <div className="rounded-lg bg-white/10 px-2 py-1 text-xs text-white/85">
-                Длительность:{" "}
+                Длительность:{' '}
                 <span className="font-semibold">
                   {formatDuration(
                     minutesBetween(
                       new Date(selected.startIso).getTime(),
-                      new Date(selected.endIso ?? new Date().toISOString()).getTime()
-                    )
+                      new Date(selected.endIso ?? new Date().toISOString()).getTime(),
+                    ),
                   )}
                 </span>
               </div>
@@ -297,8 +283,8 @@ export default function SleepTimeline24h({
             </div>
 
             <div className="mt-2 text-[11px] text-white/55">
-              * На графике сон может быть “обрезан” границами дня, но выше
-              отображается реальное время.
+              * На графике сон может быть “обрезан” границами дня, но выше отображается реальное
+              время.
             </div>
           </div>
         )}

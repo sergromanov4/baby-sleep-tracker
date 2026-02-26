@@ -7,14 +7,20 @@ export default function SleepDurationIndicator(props: { elapsedMs: number; kind:
   const { elapsedMs, kind } = props;
 
   // Soft "typical" corridor (not a recommendation, just for UI).
-  const corridor = kind === 'nap'
-    ? { low: 45 * 60 * 1000, high: 120 * 60 * 1000, cap: 3 * 60 * 60 * 1000 }
-    : { low: 8 * 60 * 60 * 1000, high: 12 * 60 * 60 * 1000, cap: 14 * 60 * 60 * 1000 };
+  const corridor =
+    kind === 'nap'
+      ? { low: 45 * 60 * 1000, high: 120 * 60 * 1000, cap: 3 * 60 * 60 * 1000 }
+      : { low: 8 * 60 * 60 * 1000, high: 12 * 60 * 60 * 1000, cap: 14 * 60 * 60 * 1000 };
 
   const p = Math.min(1, Math.max(0, elapsedMs / corridor.cap));
   const left = `${Math.round(p * 100)}%`;
 
-  const status = elapsedMs < corridor.low ? 'Только начался' : elapsedMs <= corridor.high ? 'Нормально' : 'Долго';
+  const status =
+    elapsedMs < corridor.low
+      ? 'Только начался'
+      : elapsedMs <= corridor.high
+        ? 'Нормально'
+        : 'Долго';
 
   return (
     <div className="stack" style={{ gap: 10 }}>
@@ -63,9 +69,7 @@ export default function SleepDurationIndicator(props: { elapsedMs: number; kind:
       </div>
 
       <div className="row" style={{ justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <span className="pill">
-          Тип: {kind === 'nap' ? 'Дневной' : 'Ночной'}
-        </span>
+        <span className="pill">Тип: {kind === 'nap' ? 'Дневной' : 'Ночной'}</span>
         <span className="pill">
           Окно: {formatDuration(corridor.low)} — {formatDuration(corridor.high)}
         </span>

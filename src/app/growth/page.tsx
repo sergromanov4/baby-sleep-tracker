@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import { useToast } from '@/components/useToast';
@@ -15,6 +15,23 @@ import {
 } from '@/lib/who';
 
 export default function GrowthPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="appBg">
+          <div className="container">
+            <Header title="Рост и вес" back />
+            <div className="small">Загружаем данные…</div>
+          </div>
+        </div>
+      }
+    >
+      <GrowthPageContent />
+    </Suspense>
+  );
+}
+
+function GrowthPageContent() {
   const router = useRouter();
   const search = useSearchParams();
   const [child, setChild] = useState<Child | null>(null);

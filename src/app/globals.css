@@ -172,7 +172,6 @@ a {
   color: #1a0b14;
 }
 
-
 .sleepMainBtn {
   position: relative;
 }
@@ -197,8 +196,8 @@ a {
 
 .sleepMainBtnSleeping {
   background:
-    radial-gradient(120px 120px at 30% 25%, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0) 60%),
-    linear-gradient(135deg, rgba(46,169,255,0.95), rgba(165,88,255,0.95));
+    radial-gradient(120px 120px at 30% 25%, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(135deg, rgba(46, 169, 255, 0.95), rgba(165, 88, 255, 0.95));
   color: rgba(248, 250, 252, 0.98);
 }
 
@@ -454,7 +453,7 @@ a {
 }
 
 .tabItemActive {
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   font-weight: 800;
 }
@@ -750,7 +749,9 @@ a {
 .sleepSegActive {
   outline: 3px solid rgba(255, 255, 255, 0.72);
   outline-offset: 2px;
-  box-shadow: 0 0 0 6px rgba(165, 88, 255, 0.18), 0 12px 24px rgba(0, 0, 0, 0.32);
+  box-shadow:
+    0 0 0 6px rgba(165, 88, 255, 0.18),
+    0 12px 24px rgba(0, 0, 0, 0.32);
 }
 
 .sleepTimelineTicks {

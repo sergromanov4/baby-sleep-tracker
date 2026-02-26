@@ -141,9 +141,9 @@ export function estimatePercentileFromP3P50P97(
   value: number,
 ): { bucket: 'below3' | 'p3to50' | 'p50to97' | 'above97'; near: 'p3' | 'p50' | 'p97' } {
   const diffs: Array<{ key: 'p3' | 'p50' | 'p97'; d: number }> = [
-    { key: 'p3', d: Math.abs(value - point.p3) },
-    { key: 'p50', d: Math.abs(value - point.p50) },
-    { key: 'p97', d: Math.abs(value - point.p97) },
+    { key: 'p3' as const, d: Math.abs(value - point.p3) },
+    { key: 'p50' as const, d: Math.abs(value - point.p50) },
+    { key: 'p97' as const, d: Math.abs(value - point.p97) },
   ].sort((a, b) => a.d - b.d);
 
   let bucket: 'below3' | 'p3to50' | 'p50to97' | 'above97' = 'p3to50';

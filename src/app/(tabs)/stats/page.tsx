@@ -138,8 +138,8 @@ function StatsScreen({ child }: { child: Child }) {
               <div>
                 <div style={{ fontWeight: 900 }}>Пока нет данных</div>
                 <div className="small">
-                  Начните трекать сон — нажмите большую кнопку на вкладке «Сон». Затем здесь появятся
-                  сводка за 24 часа и статистика за 7 дней.
+                  Начните трекать сон — нажмите большую кнопку на вкладке «Сон». Затем здесь
+                  появятся сводка за 24 часа и статистика за 7 дней.
                 </div>
                 <div style={{ marginTop: 10 }}>
                   <a className="button buttonPrimary" href="/sleep">

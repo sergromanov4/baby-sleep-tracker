@@ -304,25 +304,25 @@ function DayScreen({ child }: { child: Child }) {
         <div className="card">
           {wakeWindows.length > 0 ? (
             <>
-            <div className="heroRow" style={{ marginBottom: 6 }}>
-              <div className="heroArt" aria-hidden>
-                <AwakeBabyArt />
-              </div>
-              <div>
-                <div style={{ fontWeight: 900 }}>Окна бодрствования</div>
-                <div className="small">Интервалы между снами (ВБ)</div>
-              </div>
-            </div>
-            <div className="wakeWindowsList">
-              {wakeWindows.slice(0, 5).map((w, idx) => (
-                <div className="wakeWindowsRow" key={idx}>
-                  <div className="wakeWindowsTime">
-                    {formatTime(w.from)} — {formatTime(w.to)}
-                  </div>
-                  <div className="wakeWindowsDur">{formatDuration(w.dur)}</div>
+              <div className="heroRow" style={{ marginBottom: 6 }}>
+                <div className="heroArt" aria-hidden>
+                  <AwakeBabyArt />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <div style={{ fontWeight: 900 }}>Окна бодрствования</div>
+                  <div className="small">Интервалы между снами (ВБ)</div>
+                </div>
+              </div>
+              <div className="wakeWindowsList">
+                {wakeWindows.slice(0, 5).map((w, idx) => (
+                  <div className="wakeWindowsRow" key={idx}>
+                    <div className="wakeWindowsTime">
+                      {formatTime(w.from)} — {formatTime(w.to)}
+                    </div>
+                    <div className="wakeWindowsDur">{formatDuration(w.dur)}</div>
+                  </div>
+                ))}
+              </div>
             </>
           ) : (
             <div className="heroRow">
