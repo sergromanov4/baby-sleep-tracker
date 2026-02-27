@@ -20,7 +20,7 @@ export class AppDB extends Dexie {
       appState: 'id',
     });
 
-    // v2: add tags on sleep sessions and UI preferences/undo in app state
+    // v2: add tags on sleep sessions and UI preferences in app state
     this.version(2)
       .stores({
         children: 'id, createdAt',
@@ -41,7 +41,6 @@ export class AppDB extends Dexie {
           .modify((st: AppStateMigrationRecord) => {
             // Prefer the "last 24 hours" mental model by default.
             if (!st.dayRangeMode) st.dayRangeMode = 'last24';
-            if (!('lastUndo' in st)) st.lastUndo = undefined;
           });
       });
 
@@ -89,7 +88,6 @@ export async function ensureAppState(): Promise<AppState> {
   if (existing) return existing;
   const state: AppState = {
     id: 'singleton',
-    tipsEnabled: true,
     theme: 'light',
     wakeWindowMin: 90,
     // Default to the last 24 hours view.

@@ -4,16 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import ActiveChildGate from '@/components/gates/ActiveChildGate';
 import Header from '@/components/layout/Header';
 import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
-import {
-  computeWakeWindowModel,
-  dismissInsightForToday,
-  getInsightDismissedYmd,
-  listSleepSessionsInRange,
-} from '@/lib/repo';
+import { listSleepSessionsInRange } from '@/lib/repo';
 import type { Child, SleepSession } from '@/lib/types';
-import { formatDuration, startOfDayMs, toYmd } from '@/lib/time';
-import { generateDailyInsight } from '@/lib/insights';
-import { useToast } from '@/components/feedback/useToast';
+import { formatDuration, formatTime, fromYmd, startOfDayMs, toYmd } from '@/lib/time';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function StatsPage() {
   return (
@@ -22,213 +17,181 @@ export default function StatsPage() {
 }
 
 function StatsScreen({ child }: { child: Child }) {
+  const [dateYmd, setDateYmd] = useState(() => toYmd(new Date()));
   const [sessions, setSessions] = useState<SleepSession[]>([]);
-  const [wwLow, setWwLow] = useState(90 * 60 * 1000);
-  const [wwHigh, setWwHigh] = useState(110 * 60 * 1000);
-  const [wwSamples, setWwSamples] = useState(0);
-  const [dismissedYmd, setDismissedYmd] = useState<string | undefined>(undefined);
-  const { show, Toast } = useToast();
 
   useEffect(() => {
     (async () => {
-      const now = new Date();
-      const end = Date.now();
-      const start = startOfDayMs(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
-      const list = await listSleepSessionsInRange(child.id, start, end);
+      const dayStart = startOfDayMs(fromYmd(dateYmd));
+      const dayEndExclusive = dayStart + DAY_MS;
+      const list = await listSleepSessionsInRange(child.id, dayStart, dayEndExclusive);
       setSessions(list);
-
-      const ww = await computeWakeWindowModel(child.id, 7);
-      setWwLow(ww.low);
-      setWwHigh(ww.high);
-      setWwSamples(ww.sampleSize);
-      setDismissedYmd(await getInsightDismissedYmd());
     })();
-  }, [child.id]);
-
-  const todayYmd = useMemo(() => toYmd(new Date()), []);
-
-  const insight = useMemo(() => {
-    return generateDailyInsight({
-      childName: child.name,
-      sessions,
-      nowMs: Date.now(),
-      wwLowMs: wwLow,
-      wwHighMs: wwHigh,
-      wwSamples,
-    });
-  }, [child.name, sessions, wwLow, wwHigh, wwSamples]);
+  }, [child.id, dateYmd]);
 
   const computed = useMemo(() => {
+    const dayStart = startOfDayMs(fromYmd(dateYmd));
+    const dayEndExclusive = dayStart + DAY_MS;
     const now = Date.now();
-    const byDay = new Map<string, number>();
-    const byDayNap = new Map<string, number>();
-    const byDayNight = new Map<string, number>();
 
-    let longest = 0;
+    const clamped = sessions
+      .map((session) => {
+        const rawEnd = session.end ?? now;
+        const start = Math.max(session.start, dayStart);
+        const end = Math.min(rawEnd, dayEndExclusive);
+        return { ...session, start, end, dur: Math.max(0, end - start) };
+      })
+      .filter((session) => session.dur > 0)
+      .sort((a, b) => a.start - b.start);
 
-    const sorted = [...sessions].sort((a, b) => a.start - b.start);
+    const mergedSleep: Array<{ start: number; end: number }> = [];
+    for (const interval of clamped) {
+      const prev = mergedSleep[mergedSleep.length - 1];
+      if (!prev || interval.start > prev.end) {
+        mergedSleep.push({ start: interval.start, end: interval.end });
+      } else {
+        prev.end = Math.max(prev.end, interval.end);
+      }
+    }
+
+    const totalSleep = mergedSleep.reduce(
+      (acc, interval) => acc + (interval.end - interval.start),
+      0,
+    );
+    const totalWake = Math.max(0, DAY_MS - totalSleep);
+
     const wakeWindows: number[] = [];
-
-    for (const s of sessions) {
-      const end = s.end ?? now;
-      const dur = Math.max(0, end - s.start);
-      if (dur > longest) longest = dur;
-
-      const d = new Date(s.start);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      byDay.set(key, (byDay.get(key) ?? 0) + dur);
-      if (s.kind === 'night') byDayNight.set(key, (byDayNight.get(key) ?? 0) + dur);
-      else byDayNap.set(key, (byDayNap.get(key) ?? 0) + dur);
+    let cursor = dayStart;
+    for (const interval of mergedSleep) {
+      if (interval.start > cursor) wakeWindows.push(interval.start - cursor);
+      cursor = Math.max(cursor, interval.end);
     }
+    if (cursor < dayEndExclusive) wakeWindows.push(dayEndExclusive - cursor);
 
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const a = sorted[i]!;
-      const b = sorted[i + 1]!;
-      const aEnd = a.end ?? now;
-      if (aEnd < b.start) wakeWindows.push(b.start - aEnd);
-    }
-
-    const total = Array.from(byDay.values()).reduce((acc, v) => acc + v, 0);
-    const avg = byDay.size ? total / byDay.size : 0;
-
-    const wwAvg = wakeWindows.length
-      ? wakeWindows.reduce((a, b) => a + b, 0) / wakeWindows.length
+    const avgWake = wakeWindows.length
+      ? wakeWindows.reduce((acc, dur) => acc + dur, 0) / wakeWindows.length
       : 0;
 
-    // Last 24h
-    const t24Start = now - 24 * 60 * 60 * 1000;
-    const last24 = sessions
-      .map((s) => {
-        const sEnd = s.end ?? now;
-        const a = Math.max(s.start, t24Start);
-        const b = Math.min(sEnd, now);
-        return { ...s, dur: Math.max(0, b - a) };
-      })
-      .filter((s) => s.dur > 0);
-    const last24Sleep = last24.reduce((acc, s) => acc + s.dur, 0);
-    const last24Nap = last24.filter((s) => s.kind === 'nap').reduce((acc, s) => acc + s.dur, 0);
-    const last24Night = last24.filter((s) => s.kind === 'night').reduce((acc, s) => acc + s.dur, 0);
+    const naps = clamped.filter((session) => session.kind === 'nap');
+    const avgNapSleep = naps.length ? naps.reduce((acc, nap) => acc + nap.dur, 0) / naps.length : 0;
 
-    const days = Array.from(byDay.keys()).sort();
+    const dayStartWake = findDayStartWakeTime(sessions, dayStart, dayEndExclusive);
+    const nightSleepStart = sessions
+      .filter(
+        (session) =>
+          session.kind === 'night' && session.start >= dayStart && session.start < dayEndExclusive,
+      )
+      .sort((a, b) => a.start - b.start)[0]?.start;
+
     return {
-      avgSleepPerDay: avg,
-      avgWakeWindow: wwAvg,
-      longest,
-      days,
-      byDay,
-      byDayNap,
-      byDayNight,
-      last24Sleep,
-      last24Nap,
-      last24Night,
+      hasData: clamped.length > 0,
+      totalWake,
+      totalSleep,
+      avgWake,
+      avgNapSleep,
+      dayStartWake: dayStartWake ?? null,
+      nightSleepStart: nightSleepStart ?? null,
     };
-  }, [sessions]);
+  }, [dateYmd, sessions]);
 
   return (
     <>
       <Header title="Статистика" />
 
       <div className="stack">
-        {sessions.length === 0 ? (
+        <div className="card stack">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 900 }}>Дата статистики</div>
+            <input
+              className="input"
+              type="date"
+              value={dateYmd}
+              onChange={(e) => setDateYmd(e.target.value)}
+              style={{ maxWidth: 170 }}
+            />
+          </div>
+          <div className="small">{child.name}</div>
+        </div>
+
+        {!computed.hasData ? (
           <div className="card">
             <div className="heroRow">
               <div className="heroArt" aria-hidden>
                 <SleepingBabyArt />
               </div>
               <div>
-                <div style={{ fontWeight: 900 }}>Пока нет данных</div>
+                <div style={{ fontWeight: 900 }}>За выбранную дату мало данных</div>
                 <div className="small">
-                  Начните трекать сон — нажмите большую кнопку на вкладке «Сон». Затем здесь
-                  появятся сводка за 24 часа и статистика за 7 дней.
-                </div>
-                <div style={{ marginTop: 10 }}>
-                  <a className="button buttonPrimary" href="/sleep">
-                    Перейти к сну
-                  </a>
+                  Добавьте записи сна на вкладках «Сон» и «День», чтобы статистика стала точнее.
                 </div>
               </div>
             </div>
           </div>
         ) : null}
 
-        {dismissedYmd !== todayYmd ? (
-          <div className="card">
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 900 }}>{insight.title}</div>
-              <button
-                className="button"
-                onClick={async () => {
-                  await dismissInsightForToday(todayYmd);
-                  setDismissedYmd(todayYmd);
-                  show('Скрыто на сегодня');
-                }}
-              >
-                Скрыть
-              </button>
-            </div>
-            <div className="small" style={{ marginTop: 8 }}>
-              {insight.text}
-            </div>
+        {computed.hasData ? (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gap: 12,
+            }}
+          >
+            <StatTile title="Общее ВБ" value={formatDuration(computed.totalWake)} />
+            <StatTile title="Общий сон" value={formatDuration(computed.totalSleep)} />
+            <StatTile
+              title="Среднее ВБ"
+              value={computed.avgWake ? formatDuration(computed.avgWake) : '—'}
+            />
+            <StatTile
+              title="Средний сон (без ночи)"
+              value={computed.avgNapSleep ? formatDuration(computed.avgNapSleep) : '—'}
+            />
+            <StatTile
+              title="Начал день в"
+              value={computed.dayStartWake !== null ? formatTime(computed.dayStartWake) : '—'}
+            />
+            <StatTile
+              title="Ушел на ночной сон в"
+              value={computed.nightSleepStart !== null ? formatTime(computed.nightSleepStart) : '—'}
+            />
           </div>
         ) : null}
-
-        <div className="card kpi">
-          <div className="kpiLabel">Последние 24 часа</div>
-          <div className="kpiValue">
-            {computed.last24Sleep ? formatDuration(computed.last24Sleep) : '—'}
-          </div>
-          <div className="small">
-            Дн: {formatDuration(computed.last24Nap)} · Ночь: {formatDuration(computed.last24Night)}
-          </div>
-        </div>
-
-        <div className="card kpi">
-          <div className="kpiLabel">Средний сон за день (последние 7 дней)</div>
-          <div className="kpiValue">
-            {computed.avgSleepPerDay ? formatDuration(computed.avgSleepPerDay) : '—'}
-          </div>
-        </div>
-
-        <div className="card kpi">
-          <div className="kpiLabel">Бодрствование (среднее между снами)</div>
-          <div className="kpiValue">
-            {computed.avgWakeWindow ? formatDuration(computed.avgWakeWindow) : '—'}
-          </div>
-        </div>
-
-        <div className="card kpi">
-          <div className="kpiLabel">Самый долгий сон (последние 7 дней)</div>
-          <div className="kpiValue">
-            {computed.longest ? formatDuration(computed.longest) : '—'}
-          </div>
-        </div>
-
-        <div className="card">
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>Сон по дням (7 дней)</div>
-          <div className="small" style={{ display: 'grid', gap: 6 }}>
-            {computed.days.length === 0 ? (
-              <div>Пока нет данных.</div>
-            ) : (
-              computed.days.slice(-7).map((d) => {
-                const total = computed.byDay.get(d) ?? 0;
-                const nap = computed.byDayNap.get(d) ?? 0;
-                const night = computed.byDayNight.get(d) ?? 0;
-                return (
-                  <div key={d} className="row" style={{ justifyContent: 'space-between' }}>
-                    <span>{d}</span>
-                    <span>
-                      {formatDuration(total)} · дн {formatDuration(nap)} · ночь{' '}
-                      {formatDuration(night)}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
       </div>
-
-      {Toast}
     </>
+  );
+}
+
+function findDayStartWakeTime(
+  sessions: SleepSession[],
+  dayStart: number,
+  dayEndExclusive: number,
+): number | undefined {
+  const morningNightWake = sessions
+    .filter(
+      (session): session is SleepSession & { end: number } =>
+        session.kind === 'night' &&
+        typeof session.end === 'number' &&
+        session.end >= dayStart &&
+        session.end < dayEndExclusive,
+    )
+    .sort((a, b) => a.end - b.end)[0]?.end;
+
+  if (typeof morningNightWake === 'number') return morningNightWake;
+
+  return sessions
+    .filter(
+      (session): session is SleepSession & { end: number } =>
+        typeof session.end === 'number' && session.end >= dayStart && session.end < dayEndExclusive,
+    )
+    .sort((a, b) => a.end - b.end)[0]?.end;
+}
+
+function StatTile({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="card kpi" style={{ minHeight: 116 }}>
+      <div className="kpiLabel">{title}</div>
+      <div className="kpiValue">{value}</div>
+    </div>
   );
 }

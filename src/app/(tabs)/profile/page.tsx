@@ -1,13 +1,18 @@
 ﻿'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import ActiveChildGate from '@/components/gates/ActiveChildGate';
 import Header from '@/components/layout/Header';
-import { createChild, getAppState, listChildren, setActiveChild } from '@/lib/repo';
+import {
+  createChild,
+  getAppState,
+  listChildren,
+  listGrowthEntries,
+  setActiveChild,
+} from '@/lib/repo';
 import { getAuthMode, setAuthMode, getSession, signOut } from '@/lib/auth/session';
-import type { Child, Sex } from '@/lib/types';
-import { ageInMonths } from '@/lib/time';
+import type { Child, GrowthEntry, Sex } from '@/lib/types';
+import { ageInMonths, formatDateRu } from '@/lib/time';
 import { exportAllToExcel } from '@/lib/exportExcel';
 import { useToast } from '@/components/feedback/useToast';
 
@@ -26,6 +31,7 @@ function ProfileScreen({ child }: { child: Child }) {
   const [sex, setSex] = useState<Sex>('female');
   const [authMode, setAuthModeState] = useState<'local' | 'cloud'>('local');
   const [hasSession, setHasSession] = useState(false);
+  const [lastGrowth, setLastGrowth] = useState<GrowthEntry | null>(null);
   const { show, Toast } = useToast();
 
   useEffect(() => {
@@ -44,7 +50,28 @@ function ProfileScreen({ child }: { child: Child }) {
     setActiveId(child.id);
   }, [child.id]);
 
+  useEffect(() => {
+    (async () => {
+      const entries = await listGrowthEntries(child.id);
+      const latestWithData =
+        [...entries]
+          .reverse()
+          .find(
+            (entry) => typeof entry.weightKg === 'number' || typeof entry.heightCm === 'number',
+          ) ?? null;
+      setLastGrowth(latestWithData);
+    })();
+  }, [child.id]);
+
   const ageMonths = useMemo(() => ageInMonths(child.dob), [child.dob]);
+  const lastGrowthWeight = useMemo(
+    () => (typeof lastGrowth?.weightKg === 'number' ? `${lastGrowth.weightKg} кг` : '—'),
+    [lastGrowth],
+  );
+  const lastGrowthHeight = useMemo(
+    () => (typeof lastGrowth?.heightCm === 'number' ? `${lastGrowth.heightCm} см` : '—'),
+    [lastGrowth],
+  );
 
   return (
     <>
@@ -80,9 +107,18 @@ function ProfileScreen({ child }: { child: Child }) {
             <div style={{ fontWeight: 700 }}>{ageMonths} мес</div>
           </div>
 
-          <Link className="button buttonFull" href="/growth">
-            Рост и вес
-          </Link>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div className="small">Последний замер</div>
+            <div style={{ fontWeight: 700 }}>
+              {lastGrowthWeight} · {lastGrowthHeight}
+            </div>
+          </div>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div className="small">Дата замера</div>
+            <div style={{ fontWeight: 700 }}>
+              {lastGrowth ? formatDateRu(lastGrowth.date) : '—'}
+            </div>
+          </div>
         </div>
 
         <div className="card stack">

@@ -1,14 +1,6 @@
 import { nanoid } from 'nanoid';
 import { db, ensureAppState } from './db';
-import type {
-  AppState,
-  Child,
-  GrowthEntry,
-  Sex,
-  SleepKind,
-  SleepSession,
-  UndoRecord,
-} from './types';
+import type { AppState, Child, GrowthEntry, Sex, SleepKind, SleepSession } from './types';
 import { SleepDomainError, validateEndAfterStart, validateNoOverlap } from './sleepRules';
 
 export function inferSleepKindByTime(ms: number): SleepKind {
@@ -16,50 +8,6 @@ export function inferSleepKindByTime(ms: number): SleepKind {
   const h = d.getHours();
   // Simple heuristic for MVP: night is 19:00–07:00
   return h >= 19 || h < 7 ? 'night' : 'nap';
-}
-
-async function setUndo(lastUndo: UndoRecord | undefined): Promise<void> {
-  const state = await ensureAppState();
-  await db.appState.put({ ...state, lastUndo });
-}
-
-export async function getUndo(): Promise<UndoRecord | undefined> {
-  const state = await ensureAppState();
-  return state.lastUndo;
-}
-
-export async function undoLastAction(): Promise<void> {
-  const state = await ensureAppState();
-  const u = state.lastUndo;
-  if (!u) return;
-
-  try {
-    if (u.type === 'sleep_create') {
-      await db.sleepSessions.delete(u.sessionId);
-    } else if (u.type === 'sleep_delete') {
-      // restore deleted session (validate overlaps)
-      const existing = await db.sleepSessions.where({ childId: u.session.childId }).toArray();
-      validateNoOverlap({
-        candidate: { id: u.session.id, start: u.session.start, end: u.session.end ?? null },
-        existing,
-        now: Date.now(),
-      });
-      await db.sleepSessions.add({ ...u.session, tags: u.session.tags ?? [] });
-    } else if (u.type === 'sleep_update') {
-      // restore previous snapshot
-      await updateSleepSession(u.sessionId, {
-        kind: u.prev.kind,
-        start: u.prev.start,
-        end: u.prev.end,
-        note: u.prev.note,
-        tags: u.prev.tags,
-      });
-      // updateSleepSession sets new undo; we'll override below
-    }
-  } finally {
-    // clear undo no matter what to avoid loops
-    await setUndo(undefined);
-  }
 }
 
 export async function listChildren(): Promise<Child[]> {
@@ -145,7 +93,6 @@ export async function startSleepSession(params: {
     updatedAt: Date.now(),
   };
   await db.sleepSessions.add(session);
-  await setUndo({ type: 'sleep_create', sessionId: session.id });
   return session;
 }
 
@@ -154,14 +101,12 @@ export async function stopSleepSession(params: { sessionId: string; end?: number
   const s = await db.sleepSessions.get(params.sessionId);
   if (!s) return;
   if (s.end !== null) return;
-  const prev: SleepSession = { ...s };
   validateEndAfterStart(s.start, end);
 
   const existing = await db.sleepSessions.where({ childId: s.childId }).toArray();
   validateNoOverlap({ candidate: { id: s.id, start: s.start, end }, existing, now: Date.now() });
 
   await db.sleepSessions.update(params.sessionId, { end, updatedAt: Date.now() });
-  await setUndo({ type: 'sleep_update', sessionId: params.sessionId, prev });
 }
 
 export async function getRunningSleepSession(childId: string): Promise<SleepSession | undefined> {
@@ -194,8 +139,6 @@ export async function updateSleepSession(
   const s = await db.sleepSessions.get(sessionId);
   if (!s) return;
 
-  const prev: SleepSession = { ...s };
-
   const nextStart = patch.start ?? s.start;
   const nextEnd = patch.end ?? s.end;
 
@@ -225,7 +168,6 @@ export async function updateSleepSession(
   });
 
   await db.sleepSessions.update(sessionId, { ...patch, updatedAt: Date.now() });
-  await setUndo({ type: 'sleep_update', sessionId, prev });
 }
 
 export async function createSleepSessionManual(params: {
@@ -256,14 +198,11 @@ export async function createSleepSessionManual(params: {
     updatedAt: Date.now(),
   };
   await db.sleepSessions.add(session);
-  await setUndo({ type: 'sleep_create', sessionId: session.id });
   return session;
 }
 
 export async function deleteSleepSession(sessionId: string): Promise<void> {
-  const s = await db.sleepSessions.get(sessionId);
   await db.sleepSessions.delete(sessionId);
-  if (s) await setUndo({ type: 'sleep_delete', session: { ...s, tags: s.tags ?? [] } });
 }
 
 export async function setDayRangeMode(mode: 'today' | 'last24'): Promise<void> {

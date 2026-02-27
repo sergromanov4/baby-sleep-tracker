@@ -20,12 +20,10 @@ export default function GrowthPage() {
   return (
     <Suspense
       fallback={
-        <div className="appBg">
-          <div className="container">
-            <Header title="Рост и вес" back />
-            <div className="small">Загружаем данные…</div>
-          </div>
-        </div>
+        <>
+          <Header title="Рост и вес" />
+          <div className="small">Загружаем данные…</div>
+        </>
       }
     >
       <GrowthPageContent />
@@ -86,8 +84,7 @@ function GrowthPageContent() {
       addRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
     router.replace('/growth');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [child?.id]);
+  }, [search, router]);
 
   const weightPoints = useMemo(() => {
     if (!child) return [];
@@ -235,154 +232,152 @@ function GrowthPageContent() {
 
   if (!child) {
     return (
-      <div className="appBg">
-        <div className="container">
-          <Header title="Рост и вес" back />
+      <>
+        <Header title="Рост и вес" />
+        <div className="card">
           <div className="small">Сначала добавьте ребенка в профиле.</div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="appBg">
-      <div className="container">
-        <Header title="Рост и вес" back />
+    <>
+      <Header title="Рост и вес" />
 
-        <div className="stack">
-          <div className="card stack">
-            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 900 }}>
-                {metric === 'weight' ? 'Вес по возрасту' : 'Рост по возрасту'} (WHO P3/P50/P97)
-              </div>
-              <select
-                className="select"
-                value={metric}
-                onChange={(e) => setMetric(toGrowthMetric(e.target.value))}
-                style={{ maxWidth: 160 }}
-              >
-                <option value="weight">Вес</option>
-                <option value="height">Рост</option>
-              </select>
+      <div className="stack">
+        <div className="card stack">
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 900 }}>
+              {metric === 'weight' ? 'Вес по возрасту' : 'Рост по возрасту'} (WHO P3/P50/P97)
             </div>
-            <canvas ref={canvasRef} className="canvas" style={{ height: 220 }} />
-            <div className="small">Линии: P3/P50/P97. Белые точки — ваши замеры.</div>
-            {activeMeasurement && percentile ? (
-              <div className="small">
-                Последний замер: <b>{`${activeMeasurement.value} ${activeMeasurement.unit}`}</b> (
-                {formatDateRu(activeMeasurement.date)}), около <b>{percentile.near}</b>
-                {percentile.bucket === 'below3' ? ' (ниже P3)' : ''}
-                {percentile.bucket === 'above97' ? ' (выше P97)' : ''}
-              </div>
-            ) : (
-              <div className="small">
-                Добавьте хотя бы один замер, чтобы увидеть позицию на графике.
-              </div>
-            )}
-          </div>
-
-          <div className="card stack">
-            <div style={{ fontWeight: 900 }}>Добавить замер</div>
-            <div ref={addRef} />
-
-            <div className="row" style={{ gap: 12 }}>
-              <div style={{ flex: 1 }} className="field">
-                <div className="label">Дата</div>
-                <input
-                  className="input"
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                />
-              </div>
-              <div style={{ flex: 1 }} className="field">
-                <div className="label">Вес, кг</div>
-                <input
-                  className="input"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  placeholder="например 7.2"
-                  inputMode="decimal"
-                />
-              </div>
-            </div>
-
-            <div className="row" style={{ gap: 12 }}>
-              <div style={{ flex: 1 }} className="field">
-                <div className="label">Рост, см</div>
-                <input
-                  className="input"
-                  value={height}
-                  onChange={(e) => setHeight(e.target.value)}
-                  placeholder="например 64"
-                  inputMode="decimal"
-                />
-              </div>
-              <div style={{ flex: 1 }} />
-            </div>
-
-            <button
-              className="button buttonPrimary buttonFull"
-              onClick={async () => {
-                const w = parseOptionalDecimal(weight);
-                const h = parseOptionalDecimal(height);
-                await addGrowthEntry({
-                  childId: child.id,
-                  date,
-                  weightKg: w,
-                  heightCm: h,
-                });
-                await refresh(child);
-                setWeight('');
-                setHeight('');
-                show('Добавлено');
-              }}
+            <select
+              className="select"
+              value={metric}
+              onChange={(e) => setMetric(toGrowthMetric(e.target.value))}
+              style={{ maxWidth: 160 }}
             >
-              Сохранить
-            </button>
-
-            <div className="small">Возраст на дату считается автоматически из даты рождения.</div>
+              <option value="weight">Вес</option>
+              <option value="height">Рост</option>
+            </select>
           </div>
-
-          <div className="card stack">
-            <div style={{ fontWeight: 900 }}>История</div>
-            {entries.length === 0 ? <div className="small">Пока нет замеров.</div> : null}
-
-            <div className="list">
-              {historyEntries.map((e) => (
-                <div key={e.id} className="listItem">
-                  <div>
-                    <div className="listItemTitle">{formatDateRu(e.date)}</div>
-                    <div className="listItemSub">
-                      {typeof e.weightKg === 'number' ? `${e.weightKg} кг` : '—'} ·{' '}
-                      {typeof e.heightCm === 'number' ? `${e.heightCm} см` : '—'}
-                    </div>
-                  </div>
-                  <button
-                    className="button"
-                    onClick={async () => {
-                      await deleteGrowthEntry(e.id);
-                      await refresh(child);
-                      show('Удалено (можно восстановить через бэкап позже)');
-                    }}
-                  >
-                    Удалить
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card">
+          <canvas ref={canvasRef} className="canvas" style={{ height: 220 }} />
+          <div className="small">Линии: P3/P50/P97. Белые точки — ваши замеры.</div>
+          {activeMeasurement && percentile ? (
             <div className="small">
-              Данные кривых: WHO Child Growth Standards, simplified field tables (percentiles), 0–24
-              месяцев.
+              Последний замер: <b>{`${activeMeasurement.value} ${activeMeasurement.unit}`}</b> (
+              {formatDateRu(activeMeasurement.date)}), около <b>{percentile.near}</b>
+              {percentile.bucket === 'below3' ? ' (ниже P3)' : ''}
+              {percentile.bucket === 'above97' ? ' (выше P97)' : ''}
             </div>
+          ) : (
+            <div className="small">
+              Добавьте хотя бы один замер, чтобы увидеть позицию на графике.
+            </div>
+          )}
+        </div>
+
+        <div className="card stack">
+          <div style={{ fontWeight: 900 }}>Добавить замер</div>
+          <div ref={addRef} />
+
+          <div className="row" style={{ gap: 12 }}>
+            <div style={{ flex: 1 }} className="field">
+              <div className="label">Дата</div>
+              <input
+                className="input"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1 }} className="field">
+              <div className="label">Вес, кг</div>
+              <input
+                className="input"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                placeholder="например 7.2"
+                inputMode="decimal"
+              />
+            </div>
+          </div>
+
+          <div className="row" style={{ gap: 12 }}>
+            <div style={{ flex: 1 }} className="field">
+              <div className="label">Рост, см</div>
+              <input
+                className="input"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                placeholder="например 64"
+                inputMode="decimal"
+              />
+            </div>
+            <div style={{ flex: 1 }} />
+          </div>
+
+          <button
+            className="button buttonPrimary buttonFull"
+            onClick={async () => {
+              const w = parseOptionalDecimal(weight);
+              const h = parseOptionalDecimal(height);
+              await addGrowthEntry({
+                childId: child.id,
+                date,
+                weightKg: w,
+                heightCm: h,
+              });
+              await refresh(child);
+              setWeight('');
+              setHeight('');
+              show('Добавлено');
+            }}
+          >
+            Сохранить
+          </button>
+
+          <div className="small">Возраст на дату считается автоматически из даты рождения.</div>
+        </div>
+
+        <div className="card stack">
+          <div style={{ fontWeight: 900 }}>История</div>
+          {entries.length === 0 ? <div className="small">Пока нет замеров.</div> : null}
+
+          <div className="list">
+            {historyEntries.map((e) => (
+              <div key={e.id} className="listItem">
+                <div>
+                  <div className="listItemTitle">{formatDateRu(e.date)}</div>
+                  <div className="listItemSub">
+                    {typeof e.weightKg === 'number' ? `${e.weightKg} кг` : '—'} ·{' '}
+                    {typeof e.heightCm === 'number' ? `${e.heightCm} см` : '—'}
+                  </div>
+                </div>
+                <button
+                  className="button"
+                  onClick={async () => {
+                    await deleteGrowthEntry(e.id);
+                    await refresh(child);
+                    show('Удалено (можно восстановить через бэкап позже)');
+                  }}
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
-        {Toast}
+        <div className="card">
+          <div className="small">
+            Данные кривых: WHO Child Growth Standards, simplified field tables (percentiles), 0–24
+            месяцев.
+          </div>
+        </div>
       </div>
-    </div>
+
+      {Toast}
+    </>
   );
 }

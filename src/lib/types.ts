@@ -21,11 +21,6 @@ export type SleepSession = {
   updatedAt: number;
 };
 
-export type UndoRecord =
-  | { type: 'sleep_create'; sessionId: string }
-  | { type: 'sleep_delete'; session: SleepSession }
-  | { type: 'sleep_update'; sessionId: string; prev: SleepSession };
-
 export type GrowthEntry = {
   id: string;
   childId: string;
@@ -40,11 +35,9 @@ export type GrowthEntry = {
 export type AppState = {
   id: 'singleton';
   activeChildId?: string;
-  tipsEnabled: boolean;
   theme: 'light';
   wakeWindowMin?: number; // default
   dayRangeMode?: 'today' | 'last24';
-  lastUndo?: UndoRecord;
 
   /**
    * Account-ready architecture:

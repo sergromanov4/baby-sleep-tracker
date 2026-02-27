@@ -7,7 +7,7 @@ const tabs = [
   { href: '/sleep', label: 'Сон', icon: '🌙' },
   { href: '/day', label: 'День', icon: '🗓️' },
   { href: '/stats', label: 'Статистика', icon: '📊' },
-  { href: '/tips', label: 'Советы', icon: '💡' },
+  { href: '/growth', label: 'Рост/вес', icon: '📏' },
   { href: '/profile', label: 'Профиль', icon: '👤' },
 ] as const;
 

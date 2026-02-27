@@ -11,11 +11,9 @@ import {
   deleteSleepSession,
   computeWakeWindowModel,
   getDayRangeMode,
-  getUndo,
   inferSleepKindByTime,
   listSleepSessionsInRange,
   setDayRangeMode,
-  undoLastAction,
   updateSleepSession,
 } from '@/lib/repo';
 import { getSleepErrorCode } from '@/lib/sleepRules';
@@ -46,7 +44,6 @@ function DayScreen({ child }: { child: Child }) {
   const [rangeMode, setRangeMode] = useState<'today' | 'last24'>('today');
   const [items, setItems] = useState<SleepSession[]>([]);
   const [editing, setEditing] = useState<SleepSession | null>(null);
-  const [undoAvail, setUndoAvail] = useState(false);
   const [wwLow, setWwLow] = useState<number>(90 * 60 * 1000);
   const [wwHigh, setWwHigh] = useState<number>(110 * 60 * 1000);
   const [wwSamples, setWwSamples] = useState<number>(0);
@@ -69,7 +66,6 @@ function DayScreen({ child }: { child: Child }) {
     (async () => {
       const m = await getDayRangeMode();
       setRangeMode(m);
-      setUndoAvail(!!(await getUndo()));
     })();
   }, [child.id]);
 
@@ -86,7 +82,6 @@ function DayScreen({ child }: { child: Child }) {
   const refresh = useCallback(async () => {
     const list = await listSleepSessionsInRange(child.id, dayStart, dayEnd);
     setItems(list);
-    setUndoAvail(!!(await getUndo()));
 
     // Update wake-window corridor (used for the indicator)
     const ww = await computeWakeWindowModel(child.id, 7);
@@ -152,23 +147,7 @@ function DayScreen({ child }: { child: Child }) {
 
   return (
     <>
-      <Header
-        title="День"
-        right={
-          undoAvail ? (
-            <button
-              className="button"
-              onClick={async () => {
-                await undoLastAction();
-                await refresh();
-                show('Отменено');
-              }}
-            >
-              ↩︎ Undo
-            </button>
-          ) : null
-        }
-      />
+      <Header title="День" />
 
       <div className="stack">
         <div className="card stack">
