@@ -1,8 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
-import ActiveChildGate from '@/components/ActiveChildGate';
-import Header from '@/components/Header';
+import ActiveChildGate from '@/components/gates/ActiveChildGate';
+import Header from '@/components/layout/Header';
 import { getAppState, updateAppState } from '@/lib/repo';
 import type { Child } from '@/lib/types';
 

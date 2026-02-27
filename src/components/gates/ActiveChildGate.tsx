@@ -1,10 +1,10 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import type { Child, Sex } from '@/lib/types';
 import { createChild, getActiveChild, getAppState } from '@/lib/repo';
-import Header from './Header';
-import { useToast } from './useToast';
+import Header from '@/components/layout/Header';
+import { useToast } from '@/components/feedback/useToast';
 
 export default function ActiveChildGate({
   title,
@@ -85,7 +85,7 @@ function AddChildForm({ onCreated }: { onCreated: (c: Child) => void }) {
       </div>
       <div className="field">
         <div className="label">Пол</div>
-        <select className="select" value={sex} onChange={(e) => setSex(e.target.value as Sex)}>
+        <select className="select" value={sex} onChange={(e) => setSex(toSex(e.target.value))}>
           <option value="female">Девочка</option>
           <option value="male">Мальчик</option>
         </select>
@@ -104,4 +104,8 @@ function AddChildForm({ onCreated }: { onCreated: (c: Child) => void }) {
       </button>
     </div>
   );
+}
+
+function toSex(value: string): Sex {
+  return value === 'male' ? 'male' : 'female';
 }

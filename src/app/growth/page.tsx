@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Header from '@/components/Header';
-import { useToast } from '@/components/useToast';
+import Header from '@/components/layout/Header';
+import { useToast } from '@/components/feedback/useToast';
 import { addGrowthEntry, deleteGrowthEntry, getActiveChild, listGrowthEntries } from '@/lib/repo';
 import type { Child, GrowthEntry } from '@/lib/types';
 import { ageInMonths, formatDateRu, fromYmd, toYmd } from '@/lib/time';
@@ -13,6 +13,8 @@ import {
   whoLengthForAge,
   whoWeightForAge,
 } from '@/lib/who';
+
+type GrowthMetric = 'weight' | 'height';
 
 export default function GrowthPage() {
   return (
@@ -31,6 +33,25 @@ export default function GrowthPage() {
   );
 }
 
+function hasWeight(entry: GrowthEntry): entry is GrowthEntry & { weightKg: number } {
+  return typeof entry.weightKg === 'number';
+}
+
+function hasHeight(entry: GrowthEntry): entry is GrowthEntry & { heightCm: number } {
+  return typeof entry.heightCm === 'number';
+}
+
+function parseOptionalDecimal(value: string): number | undefined {
+  const normalized = value.trim().replace(',', '.');
+  if (!normalized) return undefined;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+function toGrowthMetric(value: string): GrowthMetric {
+  return value === 'height' ? 'height' : 'weight';
+}
+
 function GrowthPageContent() {
   const router = useRouter();
   const search = useSearchParams();
@@ -39,15 +60,15 @@ function GrowthPageContent() {
   const [date, setDate] = useState(() => toYmd(new Date()));
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
-  const [metric, setMetric] = useState<'weight' | 'height'>('weight');
+  const [metric, setMetric] = useState<GrowthMetric>('weight');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const addRef = useRef<HTMLDivElement | null>(null);
   const { show, Toast } = useToast();
 
-  async function refresh(c: Child) {
+  const refresh = useCallback(async (c: Child) => {
     const list = await listGrowthEntries(c.id);
     setEntries(list);
-  }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -56,7 +77,7 @@ function GrowthPageContent() {
       setChild(c);
       await refresh(c);
     })();
-  }, []);
+  }, [refresh]);
 
   // Quick action: focus add form
   useEffect(() => {
@@ -71,10 +92,10 @@ function GrowthPageContent() {
   const weightPoints = useMemo(() => {
     if (!child) return [];
     return entries
-      .filter((e) => typeof e.weightKg === 'number')
+      .filter(hasWeight)
       .map((e) => {
         const m = ageInMonths(child.dob, fromYmd(e.date));
-        return { m, w: e.weightKg as number, date: e.date };
+        return { m, w: e.weightKg, date: e.date };
       })
       .sort((a, b) => a.m - b.m);
   }, [entries, child]);
@@ -82,16 +103,25 @@ function GrowthPageContent() {
   const heightPoints = useMemo(() => {
     if (!child) return [];
     return entries
-      .filter((e) => typeof e.heightCm === 'number')
+      .filter(hasHeight)
       .map((e) => {
         const m = ageInMonths(child.dob, fromYmd(e.date));
-        return { m, h: e.heightCm as number, date: e.date };
+        return { m, h: e.heightCm, date: e.date };
       })
       .sort((a, b) => a.m - b.m);
   }, [entries, child]);
 
   const lastWeight = weightPoints.length ? weightPoints[weightPoints.length - 1] : null;
   const lastHeight = heightPoints.length ? heightPoints[heightPoints.length - 1] : null;
+  const historyEntries = useMemo(() => [...entries].reverse(), [entries]);
+  const activeMeasurement =
+    metric === 'weight'
+      ? lastWeight
+        ? { value: lastWeight.w, date: lastWeight.date, unit: 'кг' as const }
+        : null
+      : lastHeight
+        ? { value: lastHeight.h, date: lastHeight.date, unit: 'см' as const }
+        : null;
 
   const percentile = useMemo(() => {
     if (!child) return null;
@@ -228,7 +258,7 @@ function GrowthPageContent() {
               <select
                 className="select"
                 value={metric}
-                onChange={(e) => setMetric(e.target.value as any)}
+                onChange={(e) => setMetric(toGrowthMetric(e.target.value))}
                 style={{ maxWidth: 160 }}
               >
                 <option value="weight">Вес</option>
@@ -237,12 +267,10 @@ function GrowthPageContent() {
             </div>
             <canvas ref={canvasRef} className="canvas" style={{ height: 220 }} />
             <div className="small">Линии: P3/P50/P97. Белые точки — ваши замеры.</div>
-            {(metric === 'weight' ? lastWeight : lastHeight) && percentile ? (
+            {activeMeasurement && percentile ? (
               <div className="small">
-                Последний замер:{' '}
-                <b>{metric === 'weight' ? `${lastWeight!.w} кг` : `${lastHeight!.h} см`}</b> (
-                {formatDateRu(metric === 'weight' ? lastWeight!.date : lastHeight!.date)}), около{' '}
-                <b>{percentile.near}</b>
+                Последний замер: <b>{`${activeMeasurement.value} ${activeMeasurement.unit}`}</b> (
+                {formatDateRu(activeMeasurement.date)}), около <b>{percentile.near}</b>
                 {percentile.bucket === 'below3' ? ' (ниже P3)' : ''}
                 {percentile.bucket === 'above97' ? ' (выше P97)' : ''}
               </div>
@@ -296,13 +324,13 @@ function GrowthPageContent() {
             <button
               className="button buttonPrimary buttonFull"
               onClick={async () => {
-                const w = weight.trim() ? Number(weight.replace(',', '.')) : undefined;
-                const h = height.trim() ? Number(height.replace(',', '.')) : undefined;
+                const w = parseOptionalDecimal(weight);
+                const h = parseOptionalDecimal(height);
                 await addGrowthEntry({
                   childId: child.id,
                   date,
-                  weightKg: Number.isFinite(w as number) ? (w as number) : undefined,
-                  heightCm: Number.isFinite(h as number) ? (h as number) : undefined,
+                  weightKg: w,
+                  heightCm: h,
                 });
                 await refresh(child);
                 setWeight('');
@@ -321,7 +349,7 @@ function GrowthPageContent() {
             {entries.length === 0 ? <div className="small">Пока нет замеров.</div> : null}
 
             <div className="list">
-              {[...entries].reverse().map((e) => (
+              {historyEntries.map((e) => (
                 <div key={e.id} className="listItem">
                   <div>
                     <div className="listItemTitle">{formatDateRu(e.date)}</div>

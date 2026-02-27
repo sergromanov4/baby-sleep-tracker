@@ -1,12 +1,12 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import ActiveChildGate from '@/components/ActiveChildGate';
-import Header from '@/components/Header';
-import { SleepingBabyArt } from '@/components/Illustrations';
-import WakeWindowIndicator from '@/components/WakeWindowIndicator';
-import SleepDurationIndicator from '@/components/SleepDurationIndicator';
-// import SleepTimeline24h from '@/components/SleepTimeline24h';
+import ActiveChildGate from '@/components/gates/ActiveChildGate';
+import Header from '@/components/layout/Header';
+import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
+import WakeWindowIndicator from '@/components/indicators/WakeWindowIndicator';
+import SleepDurationIndicator from '@/components/indicators/SleepDurationIndicator';
+// import SleepTimeline24h from '@/components/timeline/SleepTimeline24h';
 import {
   computeWakeWindowModel,
   inferSleepKindByTime,
@@ -14,9 +14,10 @@ import {
   startSleepSession,
   stopSleepSession,
 } from '@/lib/repo';
+import { getSleepErrorCode } from '@/lib/sleepRules';
 import type { Child, SleepKind, SleepSession } from '@/lib/types';
 import { formatDuration } from '@/lib/time';
-import { useToast } from '@/components/useToast';
+import { useToast } from '@/components/feedback/useToast';
 
 export default function SleepPage() {
   return <ActiveChildGate title="Сон">{(child) => <SleepScreen child={child} />}</ActiveChildGate>;
@@ -55,8 +56,6 @@ function SleepScreen({ child }: { child: Child }) {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-
-  const nowRoundedMin = useMemo(() => Math.floor(now / 60000) * 60000, [now]);
 
   const elapsed = useMemo(() => {
     if (!running) return 0;
@@ -112,7 +111,7 @@ function SleepScreen({ child }: { child: Child }) {
             <select
               className="select"
               value={kind}
-              onChange={(e) => setKind(e.target.value as SleepKind)}
+              onChange={(e) => setKind(toSleepKind(e.target.value))}
               disabled={!!running}
               style={{ maxWidth: 180 }}
             >
@@ -145,8 +144,8 @@ function SleepScreen({ child }: { child: Child }) {
                   setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
                   show('Сон завершён');
                 }
-              } catch (e: any) {
-                const code = e?.code;
+              } catch (error: unknown) {
+                const code = getSleepErrorCode(error);
                 if (code === 'SLEEP_ACTIVE_EXISTS') {
                   show('Сон уже идёт — сначала остановите его');
                 } else if (code === 'SLEEP_OVERLAP') {
@@ -248,4 +247,8 @@ function SleepScreen({ child }: { child: Child }) {
       {Toast}
     </>
   );
+}
+
+function toSleepKind(value: string): SleepKind {
+  return value === 'night' ? 'night' : 'nap';
 }

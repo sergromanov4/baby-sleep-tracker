@@ -177,10 +177,11 @@ export async function listSleepSessionsInRange(
   startMs: number,
   endMs: number,
 ): Promise<SleepSession[]> {
+  const now = Date.now();
   return db.sleepSessions
     .where({ childId })
     .filter((s) => {
-      const sEnd = s.end ?? Date.now();
+      const sEnd = s.end ?? now;
       return s.start < endMs && sEnd > startMs;
     })
     .sortBy('start');
@@ -344,8 +345,10 @@ export async function computeWakeWindowModel(
   const high = clamp(Math.max(rawHigh, low + 10 * 60 * 1000));
 
   // last wake: from the end of last finished sleep
-  const lastFinished = [...sorted].reverse().find((s) => typeof s.end === 'number');
-  const lastWakeMs = lastFinished ? Math.max(0, now - (lastFinished.end as number)) : null;
+  const lastFinished = [...sorted]
+    .reverse()
+    .find((s): s is SleepSession & { end: number } => typeof s.end === 'number');
+  const lastWakeMs = lastFinished ? Math.max(0, now - lastFinished.end) : null;
 
   return { avgWakeMs: base, p25, p75, low, high, lastWakeMs, sampleSize: wSorted.length };
 }

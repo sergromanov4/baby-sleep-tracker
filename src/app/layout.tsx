@@ -1,6 +1,6 @@
-import './globals.css';
+﻿import './globals.css';
 import type { Metadata } from 'next';
-import ClientShell from '@/components/ClientShell';
+import ClientShell from '@/components/layout/ClientShell';
 
 export const metadata: Metadata = {
   title: 'Baby Sleep Tracker MVP',

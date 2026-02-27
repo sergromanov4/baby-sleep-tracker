@@ -1,6 +1,9 @@
 import Dexie, { type Table } from 'dexie';
 import type { AppState, Child, GrowthEntry, SleepSession } from './types';
 
+type SleepSessionMigrationRecord = SleepSession & { tags?: string[] };
+type AppStateMigrationRecord = Partial<AppState> & Record<string, unknown>;
+
 export class AppDB extends Dexie {
   children!: Table<Child, string>;
   sleepSessions!: Table<SleepSession, string>;
@@ -29,13 +32,13 @@ export class AppDB extends Dexie {
         await tx
           .table('sleepSessions')
           .toCollection()
-          .modify((s: any) => {
+          .modify((s: SleepSessionMigrationRecord) => {
             if (!Array.isArray(s.tags)) s.tags = [];
           });
         await tx
           .table('appState')
           .toCollection()
-          .modify((st: any) => {
+          .modify((st: AppStateMigrationRecord) => {
             // Prefer the "last 24 hours" mental model by default.
             if (!st.dayRangeMode) st.dayRangeMode = 'last24';
             if (!('lastUndo' in st)) st.lastUndo = undefined;
@@ -54,7 +57,7 @@ export class AppDB extends Dexie {
         await tx
           .table('appState')
           .toCollection()
-          .modify((st: any) => {
+          .modify((st: AppStateMigrationRecord) => {
             if (!st.authMode) st.authMode = 'local';
             if (!('session' in st)) st.session = undefined;
           });
@@ -72,7 +75,7 @@ export class AppDB extends Dexie {
         await tx
           .table('appState')
           .toCollection()
-          .modify((st: any) => {
+          .modify((st: AppStateMigrationRecord) => {
             if (!('insightDismissedYmd' in st)) st.insightDismissedYmd = undefined;
           });
       });

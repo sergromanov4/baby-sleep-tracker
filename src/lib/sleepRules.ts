@@ -4,12 +4,28 @@ export type SleepErrorCode = 'SLEEP_ACTIVE_EXISTS' | 'SLEEP_END_BEFORE_START' | 
 
 export class SleepDomainError extends Error {
   code: SleepErrorCode;
-  details?: any;
-  constructor(code: SleepErrorCode, message: string, details?: any) {
+  details?: unknown;
+  constructor(code: SleepErrorCode, message: string, details?: unknown) {
     super(message);
     this.code = code;
     this.details = details;
   }
+}
+
+export function getSleepErrorCode(error: unknown): SleepErrorCode | null {
+  if (error instanceof SleepDomainError) return error.code;
+  if (typeof error !== 'object' || error === null) return null;
+
+  const maybeCode = (error as { code?: unknown }).code;
+  return isSleepErrorCode(maybeCode) ? maybeCode : null;
+}
+
+function isSleepErrorCode(value: unknown): value is SleepErrorCode {
+  return (
+    value === 'SLEEP_ACTIVE_EXISTS' ||
+    value === 'SLEEP_END_BEFORE_START' ||
+    value === 'SLEEP_OVERLAP'
+  );
 }
 
 // Treat intervals as [start, end) (end exclusive)

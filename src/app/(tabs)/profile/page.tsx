@@ -1,15 +1,15 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import ActiveChildGate from '@/components/ActiveChildGate';
-import Header from '@/components/Header';
+import ActiveChildGate from '@/components/gates/ActiveChildGate';
+import Header from '@/components/layout/Header';
 import { createChild, getAppState, listChildren, setActiveChild } from '@/lib/repo';
 import { getAuthMode, setAuthMode, getSession, signOut } from '@/lib/auth/session';
 import type { Child, Sex } from '@/lib/types';
 import { ageInMonths } from '@/lib/time';
 import { exportAllToExcel } from '@/lib/exportExcel';
-import { useToast } from '@/components/useToast';
+import { useToast } from '@/components/feedback/useToast';
 
 export default function ProfilePage() {
   return (
@@ -127,7 +127,7 @@ function ProfileScreen({ child }: { child: Child }) {
                 <select
                   className="select"
                   value={sex}
-                  onChange={(e) => setSex(e.target.value as Sex)}
+                  onChange={(e) => setSex(toSex(e.target.value))}
                 >
                   <option value="female">Девочка</option>
                   <option value="male">Мальчик</option>
@@ -171,7 +171,7 @@ function ProfileScreen({ child }: { child: Child }) {
               className="select"
               value={authMode}
               onChange={async (e) => {
-                const v = e.target.value as 'local' | 'cloud';
+                const v = toAuthMode(e.target.value);
                 setAuthModeState(v);
                 await setAuthMode(v);
                 show(
@@ -208,4 +208,12 @@ function ProfileScreen({ child }: { child: Child }) {
       {Toast}
     </>
   );
+}
+
+function toSex(value: string): Sex {
+  return value === 'male' ? 'male' : 'female';
+}
+
+function toAuthMode(value: string): 'local' | 'cloud' {
+  return value === 'cloud' ? 'cloud' : 'local';
 }

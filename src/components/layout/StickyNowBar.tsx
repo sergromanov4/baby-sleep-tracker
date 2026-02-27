@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   computeWakeWindowModel,
@@ -10,10 +10,11 @@ import {
   startSleepSession,
   stopSleepSession,
 } from '@/lib/repo';
+import { getSleepErrorCode } from '@/lib/sleepRules';
 import type { Child, SleepSession } from '@/lib/types';
 import { formatDuration } from '@/lib/time';
-import WakeWindowIndicator from '@/components/WakeWindowIndicator';
-import { useToast } from '@/components/useToast';
+import WakeWindowIndicator from '@/components/indicators/WakeWindowIndicator';
+import { useToast } from '@/components/feedback/useToast';
 
 /**
  * Sticky bar shown on all screens.
@@ -39,7 +40,7 @@ export default function StickyNowBar() {
   const isHiddenRoute = pathname?.startsWith('/profile') || pathname?.startsWith('/sleep');
   // keep visible on most other screens (including /growth)
 
-  async function refreshData() {
+  const refreshData = useCallback(async () => {
     const c = await getActiveChild();
     setChild(c ?? null);
     if (!c) {
@@ -54,7 +55,7 @@ export default function StickyNowBar() {
     setWwHigh(ww.high);
     setWwSamples(ww.sampleSize);
     setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
-  }
+  }, []);
 
   useEffect(() => {
     // persist collapsed state between sessions
@@ -69,8 +70,7 @@ export default function StickyNowBar() {
     const onFocus = () => refreshData();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshData]);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -83,8 +83,7 @@ export default function StickyNowBar() {
       refreshData();
     }, 5000);
     return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [refreshData]);
 
   const elapsed = useMemo(() => {
     if (!running) return 0;
@@ -168,8 +167,8 @@ export default function StickyNowBar() {
                       setRunning(s);
                       show('Сон начался');
                     }
-                  } catch (e: any) {
-                    const code = e?.code;
+                  } catch (error: unknown) {
+                    const code = getSleepErrorCode(error);
                     if (code === 'SLEEP_ACTIVE_EXISTS') show('Сон уже идёт');
                     else if (code === 'SLEEP_OVERLAP') show('Пересечение по времени');
                     else show('Не получилось выполнить действие');

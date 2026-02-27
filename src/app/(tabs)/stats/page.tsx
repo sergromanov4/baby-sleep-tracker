@@ -1,9 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import ActiveChildGate from '@/components/ActiveChildGate';
-import Header from '@/components/Header';
-import { SleepingBabyArt } from '@/components/Illustrations';
+import ActiveChildGate from '@/components/gates/ActiveChildGate';
+import Header from '@/components/layout/Header';
+import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
 import {
   computeWakeWindowModel,
   dismissInsightForToday,
@@ -13,7 +13,7 @@ import {
 import type { Child, SleepSession } from '@/lib/types';
 import { formatDuration, startOfDayMs, toYmd } from '@/lib/time';
 import { generateDailyInsight } from '@/lib/insights';
-import { useToast } from '@/components/useToast';
+import { useToast } from '@/components/feedback/useToast';
 
 export default function StatsPage() {
   return (

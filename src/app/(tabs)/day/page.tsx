@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import ActiveChildGate from '@/components/ActiveChildGate';
-import Header from '@/components/Header';
-import { AwakeBabyArt } from '@/components/Illustrations';
-import WakeWindowIndicator from '@/components/WakeWindowIndicator';
+import ActiveChildGate from '@/components/gates/ActiveChildGate';
+import Header from '@/components/layout/Header';
+import { AwakeBabyArt } from '@/components/illustrations/Illustrations';
+import WakeWindowIndicator from '@/components/indicators/WakeWindowIndicator';
 import {
   createSleepSessionManual,
   deleteSleepSession,
@@ -18,9 +18,10 @@ import {
   undoLastAction,
   updateSleepSession,
 } from '@/lib/repo';
+import { getSleepErrorCode } from '@/lib/sleepRules';
 import type { Child, SleepKind, SleepSession } from '@/lib/types';
 import { endOfDayMs, formatDuration, formatTime, startOfDayMs, toYmd } from '@/lib/time';
-import { useToast } from '@/components/useToast';
+import { useToast } from '@/components/feedback/useToast';
 
 const TAGS = [
   'На руках',
@@ -50,6 +51,19 @@ function DayScreen({ child }: { child: Child }) {
   const [wwHigh, setWwHigh] = useState<number>(110 * 60 * 1000);
   const [wwSamples, setWwSamples] = useState<number>(0);
   const { show, Toast } = useToast();
+  const openManualEditor = useCallback(() => {
+    const start = Date.now();
+    setEditing({
+      id: 'new',
+      childId: child.id,
+      kind: inferSleepKindByTime(start),
+      start,
+      end: start + 45 * 60 * 1000,
+      createdAt: start,
+      updatedAt: start,
+      tags: [],
+    });
+  }, [child.id]);
 
   useEffect(() => {
     (async () => {
@@ -69,7 +83,7 @@ function DayScreen({ child }: { child: Child }) {
     return endOfDayMs(new Date(dateYmd));
   }, [dateYmd, rangeMode]);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const list = await listSleepSessionsInRange(child.id, dayStart, dayEnd);
     setItems(list);
     setUndoAvail(!!(await getUndo()));
@@ -79,32 +93,20 @@ function DayScreen({ child }: { child: Child }) {
     setWwLow(ww.low);
     setWwHigh(ww.high);
     setWwSamples(ww.sampleSize);
-  }
+  }, [child.id, dayStart, dayEnd]);
 
   useEffect(() => {
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [child.id, dayStart, dayEnd]);
+  }, [refresh]);
 
   // Quick action: open "add manual sleep" editor when navigated with ?addSleep=1
   useEffect(() => {
     const addSleep = search?.get('addSleep');
     if (addSleep !== '1') return;
-    const start = Date.now();
-    setEditing({
-      id: 'new',
-      childId: child.id,
-      kind: inferSleepKindByTime(start),
-      start,
-      end: start + 45 * 60 * 1000,
-      createdAt: start,
-      updatedAt: start,
-      tags: [],
-    });
+    openManualEditor();
     // remove param to avoid re-opening
     router.replace('/day');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [child.id]);
+  }, [search, openManualEditor, router]);
 
   const rows = useMemo(() => {
     // Split overlaps with day boundaries for display
@@ -115,20 +117,20 @@ function DayScreen({ child }: { child: Child }) {
       return { ...s, startClamped, endClamped, dur: Math.max(0, endClamped - startClamped) };
     });
   }, [items, dayStart, dayEnd]);
+  const sortedItems = useMemo(() => [...items].sort((a, b) => a.start - b.start), [items]);
 
   const wakeWindows = useMemo(() => {
-    const sorted = [...items].sort((a, b) => a.start - b.start);
     const windows: Array<{ from: number; to: number; dur: number }> = [];
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const a = sorted[i]!;
-      const b = sorted[i + 1]!;
+    for (let i = 0; i < sortedItems.length - 1; i++) {
+      const a = sortedItems[i]!;
+      const b = sortedItems[i + 1]!;
       const aEnd = a.end ?? Date.now();
       if (aEnd < b.start) {
         windows.push({ from: aEnd, to: b.start, dur: b.start - aEnd });
       }
     }
     return windows;
-  }, [items]);
+  }, [sortedItems]);
 
   const summary = useMemo(() => {
     const now = Date.now();
@@ -142,11 +144,11 @@ function DayScreen({ child }: { child: Child }) {
       if (s.kind === 'night') night += dur;
       else nap += dur;
     }
-    const last = [...items].sort((a, b) => (a.end ?? now) - (b.end ?? now)).at(-1);
+    const last = sortedItems.at(-1);
     const lastEnd = last?.end ?? null;
     const sinceWake = lastEnd ? Math.max(0, now - lastEnd) : null;
-    return { total, nap, night, count: items.length, sinceWake };
-  }, [rows, items, dayStart, dayEnd]);
+    return { total, nap, night, count: sortedItems.length, sinceWake };
+  }, [rows, sortedItems, dayStart, dayEnd]);
 
   return (
     <>
@@ -182,7 +184,7 @@ function DayScreen({ child }: { child: Child }) {
                 className="select"
                 value={rangeMode}
                 onChange={async (e) => {
-                  const v = e.target.value as 'today' | 'last24';
+                  const v = toDayRangeMode(e.target.value);
                   setRangeMode(v);
                   await setDayRangeMode(v);
                 }}
@@ -234,22 +236,7 @@ function DayScreen({ child }: { child: Child }) {
                   <a className="button" href="/sleep">
                     Перейти к сну
                   </a>
-                  <button
-                    className="button buttonPrimary"
-                    onClick={() => {
-                      const start = Date.now();
-                      setEditing({
-                        id: 'new',
-                        childId: child.id,
-                        kind: inferSleepKindByTime(start),
-                        start,
-                        end: start + 45 * 60 * 1000,
-                        createdAt: start,
-                        updatedAt: start,
-                        tags: [],
-                      });
-                    }}
-                  >
+                  <button className="button buttonPrimary" onClick={openManualEditor}>
                     ＋ Добавить сон
                   </button>
                 </div>
@@ -280,23 +267,7 @@ function DayScreen({ child }: { child: Child }) {
             })}
           </div>
 
-          <button
-            className="button buttonFull"
-            onClick={() => {
-              // create a blank draft by opening editor with a fake session
-              const start = Date.now();
-              setEditing({
-                id: 'new',
-                childId: child.id,
-                kind: inferSleepKindByTime(start),
-                start,
-                end: start + 45 * 60 * 1000,
-                createdAt: start,
-                updatedAt: start,
-                tags: [],
-              });
-            }}
-          >
+          <button className="button buttonFull" onClick={openManualEditor}>
             ＋ Добавить сон вручную
           </button>
         </div>
@@ -379,6 +350,14 @@ function fromLocalInputValue(v: string): number {
   return new Date(v).getTime();
 }
 
+function toSleepKind(value: string): SleepKind {
+  return value === 'night' ? 'night' : 'nap';
+}
+
+function toDayRangeMode(value: string): 'today' | 'last24' {
+  return value === 'today' ? 'today' : 'last24';
+}
+
 function EditSleepModal({
   session,
   onClose,
@@ -393,7 +372,7 @@ function EditSleepModal({
   const isNew = session.id === 'new';
   const [kind, setKind] = useState<SleepKind>(session.kind);
   const [start, setStart] = useState(toLocalInputValue(session.start));
-  const [end, setEnd] = useState(toLocalInputValue((session.end ?? Date.now()) as number));
+  const [end, setEnd] = useState(toLocalInputValue(session.end ?? Date.now()));
   const [note, setNote] = useState(session.note ?? '');
   const [tags, setTags] = useState<string[]>(session.tags ?? []);
   const [saving, setSaving] = useState(false);
@@ -424,8 +403,8 @@ function EditSleepModal({
           tags,
         });
         setAutoStatus('saved');
-      } catch (e: any) {
-        const code = e?.code;
+      } catch (error: unknown) {
+        const code = getSleepErrorCode(error);
         if (code === 'SLEEP_OVERLAP')
           setError('Пересекается с другой записью сна. Подвиньте время.');
         else if (code === 'SLEEP_END_BEFORE_START') setError('Конец должен быть позже начала');
@@ -462,7 +441,7 @@ function EditSleepModal({
             <select
               className="select"
               value={kind}
-              onChange={(e) => setKind(e.target.value as SleepKind)}
+              onChange={(e) => setKind(toSleepKind(e.target.value))}
             >
               <option value="nap">Дневной сон</option>
               <option value="night">Ночной сон</option>
@@ -572,8 +551,8 @@ function EditSleepModal({
                       tags,
                     });
                     await onSaved();
-                  } catch (e: any) {
-                    const code = e?.code;
+                  } catch (error: unknown) {
+                    const code = getSleepErrorCode(error);
                     if (code === 'SLEEP_OVERLAP')
                       setError('Пересекается с другой записью сна. Подвиньте время.');
                     else if (code === 'SLEEP_END_BEFORE_START')

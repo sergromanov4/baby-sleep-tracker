@@ -31,7 +31,7 @@ type Segment = {
   endMsClamped: number;
   // For details (real values, not clamped)
   startIso: string;
-  endIso: string | null;
+  endIso: string;
   tags: string[];
 };
 
@@ -95,7 +95,7 @@ export default function SleepTimeline24h({
     const nowIso = new Date().toISOString();
     const nowMs = Date.now();
 
-    return (sessions ?? [])
+    return sessions
       .map((s) => {
         const startMs = new Date(s.startAt).getTime();
         const endMs = s.endAt ? new Date(s.endAt).getTime() : nowMs;
@@ -121,7 +121,7 @@ export default function SleepTimeline24h({
           tags: (s.tags ?? []).filter(Boolean),
         } satisfies Segment;
       })
-      .filter(Boolean) as Segment[];
+      .filter((segment): segment is Segment => segment !== null);
   }, [sessions, dayStart, dayEnd]);
 
   const selected = useMemo(
@@ -262,7 +262,7 @@ export default function SleepTimeline24h({
                   {formatDuration(
                     minutesBetween(
                       new Date(selected.startIso).getTime(),
-                      new Date(selected.endIso ?? new Date().toISOString()).getTime(),
+                      new Date(selected.endIso).getTime(),
                     ),
                   )}
                 </span>
