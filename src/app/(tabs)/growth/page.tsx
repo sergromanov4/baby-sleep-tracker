@@ -2,34 +2,32 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Header from '@/components/layout/Header';
 import { useToast } from '@/components/feedback/useToast';
 import AppSelect from '@/components/forms/AppSelect';
 import { addGrowthEntry, deleteGrowthEntry, getActiveChild, listGrowthEntries } from '@/lib/repo';
 import type { Child, GrowthEntry } from '@/lib/types';
-import { ageInMonths, formatDateRu, fromYmd, toYmd } from '@/lib/time';
+import { ageInMonths, fromYmd, toYmd } from '@/lib/time';
 import {
   estimateLengthPercentile,
   estimateWeightPercentile,
   whoLengthForAge,
   whoWeightForAge,
 } from '@/lib/who';
+import { useI18n } from '@/lib/i18n';
 
 type GrowthMetric = 'weight' | 'height';
 
 export default function GrowthPage() {
   return (
-    <Suspense
-      fallback={
-        <>
-          <Header title="Рост и вес" />
-          <div className="small">Загружаем данные…</div>
-        </>
-      }
-    >
+    <Suspense fallback={<GrowthFallback />}>
       <GrowthPageContent />
     </Suspense>
   );
+}
+
+function GrowthFallback() {
+  const { t } = useI18n();
+  return <div className="small">{t('growth.loading')}</div>;
 }
 
 function hasWeight(entry: GrowthEntry): entry is GrowthEntry & { weightKg: number } {
@@ -47,10 +45,6 @@ function parseOptionalDecimal(value: string): number | undefined {
   return Number.isFinite(numeric) ? numeric : undefined;
 }
 
-function toGrowthMetric(value: string): GrowthMetric {
-  return value === 'height' ? 'height' : 'weight';
-}
-
 function GrowthPageContent() {
   const router = useRouter();
   const search = useSearchParams();
@@ -63,6 +57,7 @@ function GrowthPageContent() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const addRef = useRef<HTMLDivElement | null>(null);
   const { show, Toast } = useToast();
+  const { t, formatDateValue } = useI18n();
 
   const refresh = useCallback(async (c: Child) => {
     const list = await listGrowthEntries(c.id);
@@ -78,7 +73,6 @@ function GrowthPageContent() {
     })();
   }, [refresh]);
 
-  // Quick action: focus add form
   useEffect(() => {
     if (search?.get('add') !== '1') return;
     setTimeout(() => {
@@ -112,13 +106,14 @@ function GrowthPageContent() {
   const lastWeight = weightPoints.length ? weightPoints[weightPoints.length - 1] : null;
   const lastHeight = heightPoints.length ? heightPoints[heightPoints.length - 1] : null;
   const historyEntries = useMemo(() => [...entries].reverse(), [entries]);
+
   const activeMeasurement =
     metric === 'weight'
       ? lastWeight
-        ? { value: lastWeight.w, date: lastWeight.date, unit: 'кг' as const }
+        ? { value: lastWeight.w, date: lastWeight.date, unit: 'kg' as const }
         : null
       : lastHeight
-        ? { value: lastHeight.h, date: lastHeight.date, unit: 'см' as const }
+        ? { value: lastHeight.h, date: lastHeight.date, unit: 'cm' as const }
         : null;
 
   const percentile = useMemo(() => {
@@ -145,7 +140,6 @@ function GrowthPageContent() {
     if (!ctx) return;
     ctx.scale(dpr, dpr);
 
-    // clear
     ctx.clearRect(0, 0, width, heightPx);
 
     const padding = 14;
@@ -163,12 +157,10 @@ function GrowthPageContent() {
       padding + ((Math.min(maxM, Math.max(minM, m)) - minM) / (maxM - minM)) * plotW;
     const y = (v: number) => padding + ((maxV - v) / (maxV - minV)) * plotH;
 
-    // axes
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth = 1;
     ctx.strokeRect(padding, padding, plotW, plotH);
 
-    // helper for polyline
     const poly = (vals: Array<{ m: number; v: number }>, stroke: string) => {
       if (vals.length < 2) return;
       ctx.beginPath();
@@ -195,11 +187,11 @@ function GrowthPageContent() {
       'rgba(165,88,255,0.55)',
     );
 
-    // user points
     const pts =
       metric === 'weight'
         ? weightPoints.map((p) => ({ m: p.m, v: p.w }))
         : heightPoints.map((p) => ({ m: p.m, v: p.h }));
+
     if (pts.length) {
       ctx.fillStyle = 'rgba(248,250,252,0.92)';
       for (const p of pts) {
@@ -208,7 +200,6 @@ function GrowthPageContent() {
         ctx.fill();
       }
 
-      // connect
       ctx.strokeStyle = 'rgba(248,250,252,0.75)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
@@ -221,12 +212,11 @@ function GrowthPageContent() {
       ctx.stroke();
     }
 
-    // labels
     ctx.fillStyle = 'rgba(248,250,252,0.75)';
     ctx.font = '12px ui-sans-serif, system-ui';
-    ctx.fillText('0м', padding, heightPx - 6);
-    ctx.fillText('24м', width - padding - 24, heightPx - 6);
-    const unit = metric === 'weight' ? 'кг' : 'см';
+    ctx.fillText('0m', padding, heightPx - 6);
+    ctx.fillText('24m', width - padding - 24, heightPx - 6);
+    const unit = metric === 'weight' ? 'kg' : 'cm';
     ctx.fillText(`${maxV.toFixed(1)}${unit}`, padding + 4, padding + 12);
     ctx.fillText(`${minV.toFixed(1)}${unit}`, padding + 4, heightPx - padding - 4);
   }, [child, weightPoints, heightPoints, metric]);
@@ -234,9 +224,8 @@ function GrowthPageContent() {
   if (!child) {
     return (
       <>
-        <Header title="Рост и вес" />
         <div className="card">
-          <div className="small">Сначала добавьте ребенка в профиле.</div>
+          <div className="small">{t('growth.noChild')}</div>
         </div>
       </>
     );
@@ -244,47 +233,51 @@ function GrowthPageContent() {
 
   return (
     <>
-      <Header title="Рост и вес" />
-
       <div className="stack">
         <div className="card stack">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 900 }}>
-              {metric === 'weight' ? 'Вес по возрасту' : 'Рост по возрасту'} (WHO P3/P50/P97)
+              {metric === 'weight' ? t('growth.weightByAge') : t('growth.heightByAge')} (WHO
+              P3/P50/P97)
             </div>
             <AppSelect
               value={metric}
               onChange={(nextMetric) => setMetric(nextMetric)}
               options={[
-                { value: 'weight', label: 'Вес' },
-                { value: 'height', label: 'Рост' },
+                { value: 'weight', label: t('growth.metricWeight') },
+                { value: 'height', label: t('growth.metricHeight') },
               ]}
               style={{ maxWidth: 160 }}
             />
           </div>
           <canvas ref={canvasRef} className="canvas" style={{ height: 220 }} />
-          <div className="small">Линии: P3/P50/P97. Белые точки — ваши замеры.</div>
+          <div className="small">{t('growth.linesHint')}</div>
           {activeMeasurement && percentile ? (
             <div className="small">
-              Последний замер: <b>{`${activeMeasurement.value} ${activeMeasurement.unit}`}</b> (
-              {formatDateRu(activeMeasurement.date)}), около <b>{percentile.near}</b>
-              {percentile.bucket === 'below3' ? ' (ниже P3)' : ''}
-              {percentile.bucket === 'above97' ? ' (выше P97)' : ''}
+              {t('growth.lastMeasurement', {
+                value: `${activeMeasurement.value} ${activeMeasurement.unit}`,
+                date: formatDateValue(activeMeasurement.date),
+                near: percentile.near,
+                extra:
+                  percentile.bucket === 'below3'
+                    ? t('growth.extraBelow3')
+                    : percentile.bucket === 'above97'
+                      ? t('growth.extraAbove97')
+                      : '',
+              })}
             </div>
           ) : (
-            <div className="small">
-              Добавьте хотя бы один замер, чтобы увидеть позицию на графике.
-            </div>
+            <div className="small">{t('growth.noMeasurement')}</div>
           )}
         </div>
 
         <div className="card stack">
-          <div style={{ fontWeight: 900 }}>Добавить замер</div>
+          <div style={{ fontWeight: 900 }}>{t('growth.addMeasurement')}</div>
           <div ref={addRef} />
 
           <div className="row" style={{ gap: 12 }}>
             <div style={{ flex: 1 }} className="field">
-              <div className="label">Дата</div>
+              <div className="label">{t('growth.date')}</div>
               <input
                 className="input"
                 type="date"
@@ -293,12 +286,12 @@ function GrowthPageContent() {
               />
             </div>
             <div style={{ flex: 1 }} className="field">
-              <div className="label">Вес, кг</div>
+              <div className="label">{t('growth.weightKg')}</div>
               <input
                 className="input"
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
-                placeholder="например 7.2"
+                placeholder={t('growth.weightPlaceholder')}
                 inputMode="decimal"
               />
             </div>
@@ -306,12 +299,12 @@ function GrowthPageContent() {
 
           <div className="row" style={{ gap: 12 }}>
             <div style={{ flex: 1 }} className="field">
-              <div className="label">Рост, см</div>
+              <div className="label">{t('growth.heightCm')}</div>
               <input
                 className="input"
                 value={height}
                 onChange={(e) => setHeight(e.target.value)}
-                placeholder="например 64"
+                placeholder={t('growth.heightPlaceholder')}
                 inputMode="decimal"
               />
             </div>
@@ -332,38 +325,38 @@ function GrowthPageContent() {
               await refresh(child);
               setWeight('');
               setHeight('');
-              show('Добавлено');
+              show(t('growth.toastAdded'));
             }}
           >
-            Сохранить
+            {t('growth.save')}
           </button>
 
-          <div className="small">Возраст на дату считается автоматически из даты рождения.</div>
+          <div className="small">{t('growth.ageAuto')}</div>
         </div>
 
         <div className="card stack">
-          <div style={{ fontWeight: 900 }}>История</div>
-          {entries.length === 0 ? <div className="small">Пока нет замеров.</div> : null}
+          <div style={{ fontWeight: 900 }}>{t('growth.history')}</div>
+          {entries.length === 0 ? <div className="small">{t('growth.noHistory')}</div> : null}
 
           <div className="list">
-            {historyEntries.map((e) => (
-              <div key={e.id} className="listItem">
+            {historyEntries.map((entry) => (
+              <div key={entry.id} className="listItem">
                 <div>
-                  <div className="listItemTitle">{formatDateRu(e.date)}</div>
+                  <div className="listItemTitle">{formatDateValue(entry.date)}</div>
                   <div className="listItemSub">
-                    {typeof e.weightKg === 'number' ? `${e.weightKg} кг` : '—'} ·{' '}
-                    {typeof e.heightCm === 'number' ? `${e.heightCm} см` : '—'}
+                    {typeof entry.weightKg === 'number' ? `${entry.weightKg} kg` : '—'} ·{' '}
+                    {typeof entry.heightCm === 'number' ? `${entry.heightCm} cm` : '—'}
                   </div>
                 </div>
                 <button
                   className="button"
                   onClick={async () => {
-                    await deleteGrowthEntry(e.id);
+                    await deleteGrowthEntry(entry.id);
                     await refresh(child);
-                    show('Удалено (можно восстановить через бэкап позже)');
+                    show(t('growth.toastDeleted'));
                   }}
                 >
-                  Удалить
+                  {t('growth.delete')}
                 </button>
               </div>
             ))}
@@ -371,10 +364,7 @@ function GrowthPageContent() {
         </div>
 
         <div className="card">
-          <div className="small">
-            Данные кривых: WHO Child Growth Standards, simplified field tables (percentiles), 0–24
-            месяцев.
-          </div>
+          <div className="small">{t('growth.whoSource')}</div>
         </div>
       </div>
 

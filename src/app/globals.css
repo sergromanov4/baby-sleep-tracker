@@ -451,14 +451,14 @@ a {
   left: 0;
   right: 0;
   /* above tabbar */
-  bottom: 70px;
+  bottom: 100px;
   z-index: 45;
 }
 
 .stickyPin {
   position: fixed;
   right: 12px;
-  bottom: 84px;
+  bottom: 105px;
   z-index: 46;
 }
 

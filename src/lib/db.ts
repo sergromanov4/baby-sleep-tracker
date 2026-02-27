@@ -78,6 +78,23 @@ export class AppDB extends Dexie {
             if (!('insightDismissedYmd' in st)) st.insightDismissedYmd = undefined;
           });
       });
+
+    // v5: ui language preference
+    this.version(5)
+      .stores({
+        children: 'id, createdAt',
+        sleepSessions: 'id, childId, start, end, kind, updatedAt',
+        growthEntries: 'id, childId, date, createdAt',
+        appState: 'id',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('appState')
+          .toCollection()
+          .modify((st: AppStateMigrationRecord) => {
+            if (!st.language) st.language = 'ru';
+          });
+      });
   }
 }
 
@@ -89,6 +106,7 @@ export async function ensureAppState(): Promise<AppState> {
   const state: AppState = {
     id: 'singleton',
     theme: 'light',
+    language: 'ru',
     wakeWindowMin: 90,
     // Default to the last 24 hours view.
     dayRangeMode: 'last24',

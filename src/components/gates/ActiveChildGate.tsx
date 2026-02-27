@@ -3,20 +3,19 @@
 import { useEffect, useState } from 'react';
 import type { Child, Sex } from '@/lib/types';
 import { createChild, getActiveChild, getAppState } from '@/lib/repo';
-import Header from '@/components/layout/Header';
 import { useToast } from '@/components/feedback/useToast';
 import AppSelect from '@/components/forms/AppSelect';
+import { useI18n } from '@/lib/i18n';
 
 export default function ActiveChildGate({
-  title,
   children,
 }: {
-  title: string;
   children: (child: Child) => React.ReactNode;
 }) {
   const [child, setChild] = useState<Child | null>(null);
   const [loading, setLoading] = useState(true);
   const { show, Toast } = useToast();
+  const { t } = useI18n();
 
   useEffect(() => {
     (async () => {
@@ -28,27 +27,21 @@ export default function ActiveChildGate({
   }, []);
 
   if (loading) {
-    return (
-      <>
-        <Header title={title} />
-        <div className="small">Загрузка…</div>
-      </>
-    );
+    return <div className="small">{t('gate.loading')}</div>;
   }
 
   if (!child) {
     return (
       <>
-        <Header title={title} />
         <div className="card stack">
-          <div style={{ fontWeight: 800, fontSize: 16 }}>Добавьте ребенка</div>
+          <div style={{ fontWeight: 800, fontSize: 16 }}>{t('gate.addChild')}</div>
           <AddChildForm
             onCreated={(c) => {
               setChild(c);
-              show('Ребенок добавлен');
+              show(t('gate.childAdded'));
             }}
           />
-          <div className="small">Данные сохраняются локально в браузере (IndexedDB).</div>
+          <div className="small">{t('gate.localData')}</div>
         </div>
         {Toast}
       </>
@@ -68,35 +61,36 @@ function AddChildForm({ onCreated }: { onCreated: (c: Child) => void }) {
   const [dob, setDob] = useState('');
   const [sex, setSex] = useState<Sex>('female');
   const [saving, setSaving] = useState(false);
+  const { t } = useI18n();
 
   return (
     <div className="stack">
       <div className="field">
-        <div className="label">Имя</div>
+        <div className="label">{t('gate.name')}</div>
         <input
           className="input"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Например, Маша"
+          placeholder={t('gate.namePlaceholder')}
         />
       </div>
       <div className="field">
-        <div className="label">Дата рождения</div>
+        <div className="label">{t('gate.dob')}</div>
         <input className="input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
       </div>
       <div className="field">
-        <div className="label">Пол</div>
+        <div className="label">{t('gate.sex')}</div>
         <AppSelect
           value={sex}
           onChange={(nextSex) => setSex(nextSex)}
           options={[
-            { value: 'female', label: 'Девочка' },
-            { value: 'male', label: 'Мальчик' },
+            { value: 'female', label: t('gate.sexFemale') },
+            { value: 'male', label: t('gate.sexMale') },
           ]}
         />
       </div>
       <button
-        className={`button buttonPrimary buttonFull`}
+        className="button buttonPrimary buttonFull"
         disabled={saving || !dob}
         onClick={async () => {
           setSaving(true);
@@ -105,7 +99,7 @@ function AddChildForm({ onCreated }: { onCreated: (c: Child) => void }) {
           setSaving(false);
         }}
       >
-        {saving ? 'Сохраняю…' : 'Создать профиль'}
+        {saving ? t('gate.saving') : t('gate.createProfile')}
       </button>
     </div>
   );

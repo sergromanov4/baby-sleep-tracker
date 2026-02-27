@@ -2,12 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ActiveChildGate from '@/components/gates/ActiveChildGate';
-import Header from '@/components/layout/Header';
 import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
 import WakeWindowIndicator from '@/components/indicators/WakeWindowIndicator';
 import SleepDurationIndicator from '@/components/indicators/SleepDurationIndicator';
 import AppSelect from '@/components/forms/AppSelect';
-// import SleepTimeline24h from '@/components/timeline/SleepTimeline24h';
 import {
   computeWakeWindowModel,
   inferSleepKindByTime,
@@ -17,11 +15,11 @@ import {
 } from '@/lib/repo';
 import { getSleepErrorCode } from '@/lib/sleepRules';
 import type { Child, SleepKind, SleepSession } from '@/lib/types';
-import { formatDuration } from '@/lib/time';
 import { useToast } from '@/components/feedback/useToast';
+import { useI18n } from '@/lib/i18n';
 
 export default function SleepPage() {
-  return <ActiveChildGate title="Сон">{(child) => <SleepScreen child={child} />}</ActiveChildGate>;
+  return <ActiveChildGate>{(child) => <SleepScreen child={child} />}</ActiveChildGate>;
 }
 
 function SleepScreen({ child }: { child: Child }) {
@@ -35,6 +33,7 @@ function SleepScreen({ child }: { child: Child }) {
   const [wwSamples, setWwSamples] = useState<number>(0);
   const [wwDaysWithData, setWwDaysWithData] = useState<number>(0);
   const { show, Toast } = useToast();
+  const { t, formatDurationValue } = useI18n();
 
   useEffect(() => {
     (async () => {
@@ -51,20 +50,22 @@ function SleepScreen({ child }: { child: Child }) {
       setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
     })();
   }, [child.id]);
+
   const sinceWake = useMemo(
     () => (wakeStart ? Math.max(0, now - wakeStart) : null),
     [wakeStart, now],
   );
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
   }, []);
 
   const elapsed = useMemo(() => {
     if (!running) return 0;
     return Math.max(0, now - running.start);
   }, [running, now]);
+
   const hasSmartWakeScale = wwDaysWithData >= minDaysForSmartScale;
 
   const bedtimeHint = useMemo(() => {
@@ -72,12 +73,12 @@ function SleepScreen({ child }: { child: Child }) {
     if (!hasSmartWakeScale) return null;
     if (sinceWake === null) return null;
 
-    // Use the upper bound of the "optimal" corridor as an estimate.
     const target = wwHigh;
     const remaining = target - sinceWake;
     const isNow = remaining <= 0;
-    return { remaining: Math.max(0, remaining), isNow, target };
+    return { remaining: Math.max(0, remaining), isNow };
   }, [sinceWake, running, wwHigh, hasSmartWakeScale]);
+
   const activeKind = running?.kind ?? kind;
 
   const buttonVisual = useMemo(() => {
@@ -97,8 +98,6 @@ function SleepScreen({ child }: { child: Child }) {
 
   return (
     <>
-      <Header title="Сон" />
-
       <div className="stack">
         <div className="card stack" style={{ textAlign: 'center' }}>
           <div className="heroRow" style={{ justifyContent: 'center' }}>
@@ -107,20 +106,20 @@ function SleepScreen({ child }: { child: Child }) {
             </div>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>
-                {running ? 'Сон идёт…' : 'Начать сон'}
+                {running ? t('sleep.heroRunning') : t('sleep.heroStart')}
               </div>
-              <div className="small">Один тап — и запись готова</div>
+              <div className="small">{t('sleep.heroSub')}</div>
             </div>
           </div>
 
           <div className="row" style={{ justifyContent: 'center' }}>
-            <span className={`pill ${kind === 'nap' ? '' : ''}`}>Тип</span>
+            <span className="pill">{t('sleep.type')}</span>
             <AppSelect
               value={kind}
               onChange={(nextKind) => setKind(nextKind)}
               options={[
-                { value: 'nap', label: 'Дневной сон' },
-                { value: 'night', label: 'Ночной сон' },
+                { value: 'nap', label: t('sleep.kindNap') },
+                { value: 'night', label: t('sleep.kindNight') },
               ]}
               disabled={!!running}
               style={{ maxWidth: 180 }}
@@ -138,9 +137,9 @@ function SleepScreen({ child }: { child: Child }) {
             onClick={async () => {
               try {
                 if (!running) {
-                  const s = await startSleepSession({ childId: child.id, kind: activeKind });
-                  setRunning(s);
-                  show('Сон начался');
+                  const session = await startSleepSession({ childId: child.id, kind: activeKind });
+                  setRunning(session);
+                  show(t('sleep.toastStarted'));
                 } else {
                   await stopSleepSession({ sessionId: running.id });
                   setRunning(null);
@@ -150,56 +149,58 @@ function SleepScreen({ child }: { child: Child }) {
                   setWwSamples(ww.sampleSize);
                   setWwDaysWithData(ww.daysWithData);
                   setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
-                  show('Сон завершён');
+                  show(t('sleep.toastStopped'));
                 }
               } catch (error: unknown) {
                 const code = getSleepErrorCode(error);
-                if (code === 'SLEEP_ACTIVE_EXISTS') {
-                  show('Сон уже идёт — сначала остановите его');
-                } else if (code === 'SLEEP_OVERLAP') {
-                  show('Время пересекается с другой записью сна');
-                } else {
-                  show('Не получилось сохранить. Проверьте время.');
-                }
+                if (code === 'SLEEP_ACTIVE_EXISTS') show(t('sleep.errorActiveExists'));
+                else if (code === 'SLEEP_OVERLAP') show(t('sleep.errorOverlap'));
+                else show(t('sleep.errorSave'));
               }
             }}
-            aria-label={running ? 'Завершить сон' : 'Начать сон'}
+            aria-label={running ? t('sleep.ariaStop') : t('sleep.ariaStart')}
           >
             <div className="sleepMainBtnIcon">
               {buttonVisual === 'ready' ? '🌙' : buttonVisual === 'wake' ? '⏰' : '💤'}
             </div>
             <div className="sleepMainBtnTitle">
               {buttonVisual === 'ready'
-                ? 'Уложить'
+                ? t('sleep.btnPutToSleep')
                 : buttonVisual === 'wake'
-                  ? 'Пора просыпаться'
-                  : 'Сон идёт'}
+                  ? t('sleep.btnWakeUp')
+                  : t('sleep.btnRunning')}
             </div>
             <div className="small" style={{ opacity: 0.92 }}>
               {running
-                ? 'Нажмите, когда проснулся'
+                ? t('sleep.btnSubWake')
                 : isBedtimeNow
-                  ? 'Самое время укладывать'
-                  : 'Нажмите, когда уснул'}
+                  ? t('sleep.btnSubNow')
+                  : t('sleep.btnSubFellAsleep')}
             </div>
           </button>
 
           <div style={{ fontSize: 44, fontWeight: 800, marginTop: 6 }}>
             {running
-              ? formatDuration(elapsed)
+              ? formatDurationValue(elapsed)
               : sinceWake !== null
-                ? formatDuration(sinceWake)
+                ? formatDurationValue(sinceWake)
                 : '—'}
           </div>
 
           {!running && sinceWake !== null ? (
             <div className="row" style={{ justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span className="pill">ВБ: {formatDuration(sinceWake)}</span>
+              <span className="pill">
+                {t('sleep.wakeNow')}: {formatDurationValue(sinceWake)}
+              </span>
               {bedtimeHint ? (
                 bedtimeHint.isNow ? (
-                  <span className="pill pillActive">Пора укладывать</span>
+                  <span className="pill pillActive">{t('sleep.bedtimeNow')}</span>
                 ) : (
-                  <span className="pill">До сна ~ {formatDuration(bedtimeHint.remaining)}</span>
+                  <span className="pill">
+                    {t('sleep.untilSleep', {
+                      duration: formatDurationValue(bedtimeHint.remaining),
+                    })}
+                  </span>
                 )
               ) : null}
             </div>
@@ -214,8 +215,8 @@ function SleepScreen({ child }: { child: Child }) {
                   className="row"
                   style={{ justifyContent: 'space-between', alignItems: 'baseline' }}
                 >
-                  <div style={{ fontWeight: 900 }}>Шкала сна: —</div>
-                  <span className="pill">Недостаточно данных</span>
+                  <div style={{ fontWeight: 900 }}>{t('sleep.scaleSleepNow')}</div>
+                  <span className="pill">{t('sleep.badgeNotEnoughData')}</span>
                 </div>
                 <div
                   style={{
@@ -227,10 +228,10 @@ function SleepScreen({ child }: { child: Child }) {
                   }}
                 />
                 <div className="small" style={{ opacity: 0.9 }}>
-                  После заполнения информации за 3 дня у вас появится интеллектуальная шкала.
+                  {t('sleep.scaleAfter3Days')}
                 </div>
                 <div className="small" style={{ opacity: 0.9 }}>
-                  Сейчас заполнено: {wwDaysWithData} из {minDaysForSmartScale} дней.
+                  {t('sleep.scaleFilled', { filled: wwDaysWithData, total: minDaysForSmartScale })}
                 </div>
               </div>
             ) : sinceWake !== null && hasSmartWakeScale ? (
@@ -246,9 +247,9 @@ function SleepScreen({ child }: { child: Child }) {
                   className="row"
                   style={{ justifyContent: 'space-between', alignItems: 'baseline' }}
                 >
-                  <div style={{ fontWeight: 900 }}>ВБ сейчас: —</div>
+                  <div style={{ fontWeight: 900 }}>{t('sleep.scaleWakeNow')}</div>
                   <span className="pill">
-                    {hasSmartWakeScale ? 'Нет данных сейчас' : 'Недостаточно данных'}
+                    {hasSmartWakeScale ? t('sleep.badgeNoDataNow') : t('sleep.badgeNotEnoughData')}
                   </span>
                 </div>
                 <div
@@ -261,28 +262,21 @@ function SleepScreen({ child }: { child: Child }) {
                   }}
                 />
                 <div className="small" style={{ opacity: 0.9 }}>
-                  {hasSmartWakeScale
-                    ? 'Запишите или завершите сон, чтобы показать текущую интеллектуальную шкалу бодрствования.'
-                    : 'После заполнения информации за 3 дня у вас появится интеллектуальная шкала.'}
+                  {hasSmartWakeScale ? t('sleep.scaleNeedDataNow') : t('sleep.scaleAfter3Days')}
                 </div>
                 {!hasSmartWakeScale ? (
                   <div className="small" style={{ opacity: 0.9 }}>
-                    Сейчас заполнено: {wwDaysWithData} из {minDaysForSmartScale} дней.
+                    {t('sleep.scaleFilled', {
+                      filled: wwDaysWithData,
+                      total: minDaysForSmartScale,
+                    })}
                   </div>
                 ) : null}
               </div>
             )}
           </div>
 
-          {/* <div style={{ marginTop: 14, textAlign: 'left' }}>
-            <SleepTimeline24h
-              childId={child.id}
-              nowMs={nowRoundedMin}
-              refreshKey={`${running?.id ?? 'none'}:${running?.end ?? 'run'}`}
-            />
-          </div> */}
-
-          <div className="small">Профиль: {child.name}</div>
+          <div className="small">{t('sleep.profile', { name: child.name })}</div>
         </div>
       </div>
 

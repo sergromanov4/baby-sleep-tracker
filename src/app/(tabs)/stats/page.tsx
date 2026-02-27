@@ -2,23 +2,22 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ActiveChildGate from '@/components/gates/ActiveChildGate';
-import Header from '@/components/layout/Header';
 import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
 import { listSleepSessionsInRange } from '@/lib/repo';
 import type { Child, SleepSession } from '@/lib/types';
-import { formatDuration, formatTime, fromYmd, startOfDayMs, toYmd } from '@/lib/time';
+import { formatTime, fromYmd, startOfDayMs, toYmd } from '@/lib/time';
+import { useI18n } from '@/lib/i18n';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function StatsPage() {
-  return (
-    <ActiveChildGate title="Статистика">{(child) => <StatsScreen child={child} />}</ActiveChildGate>
-  );
+  return <ActiveChildGate>{(child) => <StatsScreen child={child} />}</ActiveChildGate>;
 }
 
 function StatsScreen({ child }: { child: Child }) {
   const [dateYmd, setDateYmd] = useState(() => toYmd(new Date()));
   const [sessions, setSessions] = useState<SleepSession[]>([]);
+  const { t, formatDurationValue } = useI18n();
 
   useEffect(() => {
     (async () => {
@@ -96,12 +95,10 @@ function StatsScreen({ child }: { child: Child }) {
 
   return (
     <>
-      <Header title="Статистика" />
-
       <div className="stack">
         <div className="card stack">
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontWeight: 900 }}>Дата статистики</div>
+            <div style={{ fontWeight: 900 }}>{t('stats.date')}</div>
             <input
               className="input"
               type="date"
@@ -120,10 +117,8 @@ function StatsScreen({ child }: { child: Child }) {
                 <SleepingBabyArt />
               </div>
               <div>
-                <div style={{ fontWeight: 900 }}>За выбранную дату мало данных</div>
-                <div className="small">
-                  Добавьте записи сна на вкладках «Сон» и «День», чтобы статистика стала точнее.
-                </div>
+                <div style={{ fontWeight: 900 }}>{t('stats.noDataTitle')}</div>
+                <div className="small">{t('stats.noDataText')}</div>
               </div>
             </div>
           </div>
@@ -137,22 +132,28 @@ function StatsScreen({ child }: { child: Child }) {
               gap: 12,
             }}
           >
-            <StatTile title="Общее ВБ" value={formatDuration(computed.totalWake)} />
-            <StatTile title="Общий сон" value={formatDuration(computed.totalSleep)} />
             <StatTile
-              title="Среднее ВБ"
-              value={computed.avgWake ? formatDuration(computed.avgWake) : '—'}
+              title={t('stats.totalWake')}
+              value={formatDurationValue(computed.totalWake)}
             />
             <StatTile
-              title="Средний сон (без ночи)"
-              value={computed.avgNapSleep ? formatDuration(computed.avgNapSleep) : '—'}
+              title={t('stats.totalSleep')}
+              value={formatDurationValue(computed.totalSleep)}
             />
             <StatTile
-              title="Начал день в"
+              title={t('stats.avgWake')}
+              value={computed.avgWake ? formatDurationValue(computed.avgWake) : '—'}
+            />
+            <StatTile
+              title={t('stats.avgNapSleep')}
+              value={computed.avgNapSleep ? formatDurationValue(computed.avgNapSleep) : '—'}
+            />
+            <StatTile
+              title={t('stats.dayStart')}
               value={computed.dayStartWake !== null ? formatTime(computed.dayStartWake) : '—'}
             />
             <StatTile
-              title="Ушел на ночной сон в"
+              title={t('stats.nightStart')}
               value={computed.nightSleepStart !== null ? formatTime(computed.nightSleepStart) : '—'}
             />
           </div>

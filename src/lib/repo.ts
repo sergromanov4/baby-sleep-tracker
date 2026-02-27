@@ -1,6 +1,14 @@
 import { nanoid } from 'nanoid';
 import { db, ensureAppState } from './db';
-import type { AppState, Child, GrowthEntry, Sex, SleepKind, SleepSession } from './types';
+import type {
+  AppLanguage,
+  AppState,
+  Child,
+  GrowthEntry,
+  Sex,
+  SleepKind,
+  SleepSession,
+} from './types';
 import { SleepDomainError, validateEndAfterStart, validateNoOverlap } from './sleepRules';
 
 export function inferSleepKindByTime(ms: number): SleepKind {
@@ -33,6 +41,16 @@ export async function createChild(input: { name: string; dob: string; sex: Sex }
 
 export async function getAppState(): Promise<AppState> {
   return ensureAppState();
+}
+
+export async function getAppLanguage(): Promise<AppLanguage> {
+  const state = await ensureAppState();
+  return state.language ?? 'ru';
+}
+
+export async function setAppLanguage(language: AppLanguage): Promise<void> {
+  const state = await ensureAppState();
+  await db.appState.put({ ...state, language });
 }
 
 export async function setActiveChild(childId: string): Promise<void> {

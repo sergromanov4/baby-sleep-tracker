@@ -1,6 +1,6 @@
-'use client';
+﻿'use client';
 
-import { formatDuration } from '@/lib/time';
+import { useI18n } from '@/lib/i18n';
 
 export default function WakeWindowIndicator(props: {
   sinceWakeMs: number;
@@ -10,6 +10,7 @@ export default function WakeWindowIndicator(props: {
   compact?: boolean;
 }) {
   const { sinceWakeMs, lowMs, highMs, sampleSize, compact } = props;
+  const { t, formatDurationValue } = useI18n();
 
   const min = Math.max(0, Math.min(lowMs, highMs));
   const max = Math.max(min + 1, Math.max(lowMs, highMs));
@@ -19,26 +20,36 @@ export default function WakeWindowIndicator(props: {
   const p = Math.min(1, Math.max(0, sinceWakeMs / capMax));
   const left = `${Math.round(p * 100)}%`;
 
-  const status = sinceWakeMs < min ? 'Рановато' : sinceWakeMs <= max ? 'Оптимально' : 'Поздновато';
+  const status =
+    sinceWakeMs < min
+      ? t('indicator.wake.tooEarly')
+      : sinceWakeMs <= max
+        ? t('indicator.wake.optimal')
+        : t('indicator.wake.tooLate');
+  const optimalLabel = t('indicator.wake.optimal');
 
   return (
     <div className="stack" style={{ gap: compact ? 8 : 10 }}>
       {!compact ? (
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <div style={{ fontWeight: 900 }}>ВБ сейчас: {formatDuration(sinceWakeMs)}</div>
-          <span className={`pill ${status === 'Оптимально' ? 'pillActive' : ''}`}>{status}</span>
+          <div style={{ fontWeight: 900 }}>
+            {t('indicator.wake.now', { duration: formatDurationValue(sinceWakeMs) })}
+          </div>
+          <span className={`pill ${status === optimalLabel ? 'pillActive' : ''}`}>{status}</span>
         </div>
       ) : (
         <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className={`pill ${status === 'Оптимально' ? 'pillActive' : ''}`}>{status}</span>
+          <span className={`pill ${status === optimalLabel ? 'pillActive' : ''}`}>{status}</span>
           <span className="pill">
-            Окно: {formatDuration(min)}—{formatDuration(max)}
+            {t('indicator.wake.windowCompact', {
+              min: formatDurationValue(min),
+              max: formatDurationValue(max),
+            })}
           </span>
         </div>
       )}
 
       <div style={{ position: 'relative' }}>
-        {/* Base bar */}
         <div
           style={{
             height: 10,
@@ -49,7 +60,6 @@ export default function WakeWindowIndicator(props: {
           }}
         />
 
-        {/* "Optimal" corridor */}
         <div
           style={{
             position: 'absolute',
@@ -63,9 +73,8 @@ export default function WakeWindowIndicator(props: {
           }}
         />
 
-        {/* Marker */}
         <div
-          title="Текущая длительность ВБ"
+          title={t('indicator.wake.markerTitle')}
           style={{
             position: 'absolute',
             top: -4,
@@ -82,13 +91,16 @@ export default function WakeWindowIndicator(props: {
       {!compact ? (
         <div className="row" style={{ justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
           <span className="pill">
-            Окно: {formatDuration(min)} — {formatDuration(max)}
+            {t('indicator.wake.window', {
+              min: formatDurationValue(min),
+              max: formatDurationValue(max),
+            })}
           </span>
-          <span className="pill">Основано на {sampleSize} ВБ (7 дней)</span>
+          <span className="pill">{t('indicator.wake.basedOn', { samples: sampleSize })}</span>
         </div>
       ) : (
         <div className="small" style={{ opacity: 0.9 }}>
-          Основано на {sampleSize} ВБ (7 дней)
+          {t('indicator.wake.basedOn', { samples: sampleSize })}
         </div>
       )}
     </div>

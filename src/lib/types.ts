@@ -1,5 +1,6 @@
 export type Sex = 'female' | 'male';
 export type SleepKind = 'nap' | 'night';
+export type AppLanguage = 'ru' | 'en' | 'fr' | 'de' | 'es' | 'zh';
 
 export type Child = {
   id: string;
@@ -36,6 +37,7 @@ export type AppState = {
   id: 'singleton';
   activeChildId?: string;
   theme: 'light';
+  language?: AppLanguage;
   wakeWindowMin?: number; // default
   dayRangeMode?: 'today' | 'last24';
 

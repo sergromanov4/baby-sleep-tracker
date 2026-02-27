@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import ActiveChildGate from '@/components/gates/ActiveChildGate';
-import Header from '@/components/layout/Header';
 import {
   createChild,
   getAppState,
@@ -10,17 +9,16 @@ import {
   listGrowthEntries,
   setActiveChild,
 } from '@/lib/repo';
-import { getAuthMode, setAuthMode, getSession, signOut } from '@/lib/auth/session';
-import type { Child, GrowthEntry, Sex } from '@/lib/types';
-import { ageInMonths, formatDateRu } from '@/lib/time';
+import { getAuthMode, getSession, setAuthMode, signOut } from '@/lib/auth/session';
+import type { AppLanguage, Child, GrowthEntry, Sex } from '@/lib/types';
+import { ageInMonths } from '@/lib/time';
 import { exportAllToExcel } from '@/lib/exportExcel';
 import { useToast } from '@/components/feedback/useToast';
 import AppSelect from '@/components/forms/AppSelect';
+import { useI18n } from '@/lib/i18n';
 
 export default function ProfilePage() {
-  return (
-    <ActiveChildGate title="Профиль">{(child) => <ProfileScreen child={child} />}</ActiveChildGate>
-  );
+  return <ActiveChildGate>{(child) => <ProfileScreen child={child} />}</ActiveChildGate>;
 }
 
 function ProfileScreen({ child }: { child: Child }) {
@@ -34,6 +32,15 @@ function ProfileScreen({ child }: { child: Child }) {
   const [hasSession, setHasSession] = useState(false);
   const [lastGrowth, setLastGrowth] = useState<GrowthEntry | null>(null);
   const { show, Toast } = useToast();
+  const { language, setLanguage, t, formatDateValue } = useI18n();
+  const languageChangedMessage: Record<AppLanguage, string> = {
+    ru: 'Язык интерфейса изменен',
+    en: 'Interface language changed',
+    fr: "Langue de l'interface modifiee",
+    de: 'Sprache der Benutzeroberflaeche geaendert',
+    es: 'Idioma de la interfaz cambiado',
+    zh: '界面语言已更改',
+  };
 
   useEffect(() => {
     (async () => {
@@ -66,85 +73,101 @@ function ProfileScreen({ child }: { child: Child }) {
 
   const ageMonths = useMemo(() => ageInMonths(child.dob), [child.dob]);
   const lastGrowthWeight = useMemo(
-    () => (typeof lastGrowth?.weightKg === 'number' ? `${lastGrowth.weightKg} кг` : '—'),
+    () => (typeof lastGrowth?.weightKg === 'number' ? `${lastGrowth.weightKg} kg` : '—'),
     [lastGrowth],
   );
   const lastGrowthHeight = useMemo(
-    () => (typeof lastGrowth?.heightCm === 'number' ? `${lastGrowth.heightCm} см` : '—'),
+    () => (typeof lastGrowth?.heightCm === 'number' ? `${lastGrowth.heightCm} cm` : '—'),
     [lastGrowth],
   );
 
   return (
     <>
-      <Header title="Профиль" />
-
       <div className="stack">
         <div className="card stack">
-          <div style={{ fontWeight: 900 }}>Активный ребенок</div>
+          <div style={{ fontWeight: 900 }}>{t('profile.activeChild')}</div>
           <AppSelect
             value={activeId}
             onChange={async (id) => {
               setActiveId(id);
               await setActiveChild(id);
-              // Refresh by hard navigation
               location.reload();
             }}
             options={children.map((c) => ({ value: c.id, label: c.name }))}
           />
 
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div className="small">Дата рождения</div>
+            <div className="small">{t('profile.birthDate')}</div>
             <div style={{ fontWeight: 700 }}>{child.dob}</div>
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div className="small">Возраст</div>
-            <div style={{ fontWeight: 700 }}>{ageMonths} мес</div>
+            <div className="small">{t('profile.age')}</div>
+            <div style={{ fontWeight: 700 }}>{t('profile.ageMonths', { count: ageMonths })}</div>
           </div>
 
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div className="small">Последний замер</div>
+            <div className="small">{t('profile.lastMeasurement')}</div>
             <div style={{ fontWeight: 700 }}>
               {lastGrowthWeight} · {lastGrowthHeight}
             </div>
           </div>
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div className="small">Дата замера</div>
+            <div className="small">{t('profile.measureDate')}</div>
             <div style={{ fontWeight: 700 }}>
-              {lastGrowth ? formatDateRu(lastGrowth.date) : '—'}
+              {lastGrowth ? formatDateValue(lastGrowth.date) : '—'}
             </div>
           </div>
         </div>
 
         <div className="card stack">
-          <div style={{ fontWeight: 900 }}>Экспорт</div>
+          <div style={{ fontWeight: 900 }}>{t('profile.language')}</div>
+          <AppSelect
+            value={language}
+            onChange={async (nextLanguage: AppLanguage) => {
+              await setLanguage(nextLanguage);
+              show(languageChangedMessage[nextLanguage]);
+            }}
+            options={[
+              { value: 'ru', label: '🇷🇺 Русский' },
+              { value: 'en', label: '🇬🇧 English' },
+              { value: 'fr', label: '🇫🇷 Français' },
+              { value: 'de', label: '🇩🇪 Deutsch' },
+              { value: 'es', label: '🇪🇸 Español' },
+              { value: 'zh', label: '🇨🇳 中文' },
+            ]}
+          />
+        </div>
+
+        <div className="card stack">
+          <div style={{ fontWeight: 900 }}>{t('profile.export')}</div>
           <button
             className="button buttonFull"
             onClick={async () => {
               await exportAllToExcel();
-              show('Экспорт начался (скачивание файла)');
+              show(t('profile.exportStarted'));
             }}
           >
-            Выгрузить в Excel (.xlsx)
+            {t('profile.exportButton')}
           </button>
-          <div className="small">Файл содержит листы: Children, Sleep, Growth.</div>
+          <div className="small">{t('profile.exportHint')}</div>
         </div>
 
         <div className="card stack">
           <div className="row" style={{ justifyContent: 'space-between' }}>
-            <div style={{ fontWeight: 900 }}>Добавить ребенка</div>
+            <div style={{ fontWeight: 900 }}>{t('profile.addChild')}</div>
             <button className="button" onClick={() => setAdding((v) => !v)}>
-              {adding ? 'Скрыть' : 'Открыть'}
+              {adding ? t('profile.hide') : t('profile.addButton')}
             </button>
           </div>
 
           {adding ? (
             <div className="stack">
               <div className="field">
-                <div className="label">Имя</div>
+                <div className="label">{t('profile.name')}</div>
                 <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div className="field">
-                <div className="label">Дата рождения</div>
+                <div className="label">{t('profile.dob')}</div>
                 <input
                   className="input"
                   type="date"
@@ -153,13 +176,13 @@ function ProfileScreen({ child }: { child: Child }) {
                 />
               </div>
               <div className="field">
-                <div className="label">Пол</div>
+                <div className="label">{t('profile.sex')}</div>
                 <AppSelect
                   value={sex}
                   onChange={(nextSex) => setSex(nextSex)}
                   options={[
-                    { value: 'female', label: 'Девочка' },
-                    { value: 'male', label: 'Мальчик' },
+                    { value: 'female', label: t('profile.sexFemale') },
+                    { value: 'male', label: t('profile.sexMale') },
                   ]}
                 />
               </div>
@@ -170,32 +193,28 @@ function ProfileScreen({ child }: { child: Child }) {
                   const c = await createChild({ name, dob, sex });
                   const list = await listChildren();
                   setChildren(list);
-                  show(`Добавлен: ${c.name}`);
+                  show(t('profile.childAdded', { name: c.name }));
                   setName('');
                   setDob('');
                   setSex('female');
                 }}
               >
-                Добавить
+                {t('profile.add')}
               </button>
             </div>
           ) : null}
         </div>
 
-        <div className="card">
-          <div style={{ fontWeight: 900, marginBottom: 6 }}>
-            Аккаунт и синхронизация (архитектура готова)
-          </div>
+        {/* <div className="card">
+          <div style={{ fontWeight: 900, marginBottom: 6 }}>{t('profile.accountTitle')}</div>
           <div className="small" style={{ marginBottom: 10 }}>
-            Сейчас MVP работает без аккаунтов: все хранится локально в браузере (IndexedDB). Мы
-            подготовили структуру для будущей авторизации: режимы <b>local</b> и <b>cloud</b>,
-            сессия будет храниться в AppState.
+            {t('profile.accountDesc')}
           </div>
 
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontWeight: 800 }}>Режим данных</div>
-              <div className="small">local — только устройство · cloud — синхронизация (позже)</div>
+              <div style={{ fontWeight: 800 }}>{t('profile.dataMode')}</div>
+              <div className="small">{t('profile.dataModeHint')}</div>
             </div>
             <AppSelect
               value={authMode}
@@ -203,9 +222,7 @@ function ProfileScreen({ child }: { child: Child }) {
                 setAuthModeState(nextAuthMode);
                 await setAuthMode(nextAuthMode);
                 show(
-                  nextAuthMode === 'cloud'
-                    ? 'Cloud режим включён (пока без логина — работает как local)'
-                    : 'Local режим включён',
+                  nextAuthMode === 'cloud' ? t('profile.cloudEnabled') : t('profile.localEnabled'),
                 );
               }}
               options={[
@@ -217,7 +234,10 @@ function ProfileScreen({ child }: { child: Child }) {
           </div>
 
           <div className="row" style={{ justifyContent: 'space-between', marginTop: 10 }}>
-            <div className="pill">Сессия: {hasSession ? 'есть' : 'нет'}</div>
+            <div className="pill">
+              {t('profile.session')}:{' '}
+              {hasSession ? t('profile.sessionYes') : t('profile.sessionNo')}
+            </div>
             <button
               className="button"
               disabled={!hasSession}
@@ -225,13 +245,13 @@ function ProfileScreen({ child }: { child: Child }) {
                 await signOut();
                 setHasSession(false);
                 setAuthModeState('local');
-                show('Вышли из аккаунта');
+                show(t('profile.signedOut'));
               }}
             >
-              Выйти
+              {t('profile.signOut')}
             </button>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {Toast}

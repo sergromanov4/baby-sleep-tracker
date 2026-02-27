@@ -1,3 +1,5 @@
+﻿import type { AppLanguage } from './types';
+
 export function pad2(n: number): string {
   return n.toString().padStart(2, '0');
 }
@@ -16,19 +18,33 @@ export function formatTime(ms: number): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-export function formatDateRu(ymd: string): string {
+export function formatDate(ymd: string, language: AppLanguage = 'ru'): string {
   const d = fromYmd(ymd);
+  if (language === 'en') {
+    return `${pad2(d.getMonth() + 1)}/${pad2(d.getDate())}/${d.getFullYear()}`;
+  }
   return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+}
+
+export function formatDateRu(ymd: string): string {
+  return formatDate(ymd, 'ru');
 }
 
 export function durationMs(start: number, end: number): number {
   return Math.max(0, end - start);
 }
 
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number, language: AppLanguage = 'ru'): string {
   const totalMin = Math.round(ms / 60000);
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
+
+  if (language === 'en') {
+    if (h <= 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
+  }
+
   if (h <= 0) return `${m} м`;
   if (m === 0) return `${h} ч`;
   return `${h} ч ${m} м`;

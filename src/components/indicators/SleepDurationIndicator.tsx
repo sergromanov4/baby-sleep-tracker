@@ -1,10 +1,11 @@
-'use client';
+﻿'use client';
 
-import { formatDuration } from '@/lib/time';
 import type { SleepKind } from '@/lib/types';
+import { useI18n } from '@/lib/i18n';
 
 export default function SleepDurationIndicator(props: { elapsedMs: number; kind: SleepKind }) {
   const { elapsedMs, kind } = props;
+  const { t, formatDurationValue } = useI18n();
 
   // Soft "typical" corridor (not a recommendation, just for UI).
   const corridor =
@@ -17,16 +18,19 @@ export default function SleepDurationIndicator(props: { elapsedMs: number; kind:
 
   const status =
     elapsedMs < corridor.low
-      ? 'Только начался'
+      ? t('indicator.sleep.justStarted')
       : elapsedMs <= corridor.high
-        ? 'Нормально'
-        : 'Долго';
+        ? t('indicator.sleep.normal')
+        : t('indicator.sleep.long');
+  const normalLabel = t('indicator.sleep.normal');
 
   return (
     <div className="stack" style={{ gap: 10 }}>
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <div style={{ fontWeight: 900 }}>Сон: {formatDuration(elapsedMs)}</div>
-        <span className={`pill ${status === 'Нормально' ? 'pillActive' : ''}`}>{status}</span>
+        <div style={{ fontWeight: 900 }}>
+          {t('indicator.sleep.title', { duration: formatDurationValue(elapsedMs) })}
+        </div>
+        <span className={`pill ${status === normalLabel ? 'pillActive' : ''}`}>{status}</span>
       </div>
 
       <div style={{ position: 'relative' }}>
@@ -54,7 +58,7 @@ export default function SleepDurationIndicator(props: { elapsedMs: number; kind:
         />
 
         <div
-          title="Текущая длительность сна"
+          title={t('indicator.sleep.markerTitle')}
           style={{
             position: 'absolute',
             top: -4,
@@ -69,9 +73,16 @@ export default function SleepDurationIndicator(props: { elapsedMs: number; kind:
       </div>
 
       <div className="row" style={{ justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-        <span className="pill">Тип: {kind === 'nap' ? 'Дневной' : 'Ночной'}</span>
         <span className="pill">
-          Окно: {formatDuration(corridor.low)} — {formatDuration(corridor.high)}
+          {t('indicator.sleep.type', {
+            type: kind === 'nap' ? t('indicator.sleep.day') : t('indicator.sleep.night'),
+          })}
+        </span>
+        <span className="pill">
+          {t('indicator.sleep.window', {
+            low: formatDurationValue(corridor.low),
+            high: formatDurationValue(corridor.high),
+          })}
         </span>
       </div>
     </div>
