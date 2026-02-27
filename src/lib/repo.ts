@@ -249,6 +249,7 @@ export async function computeWakeWindowModel(
   high: number;
   lastWakeMs: number | null;
   sampleSize: number;
+  daysWithData: number;
 }> {
   const end = Date.now();
   const start = end - days * 24 * 60 * 60 * 1000;
@@ -289,7 +290,35 @@ export async function computeWakeWindowModel(
     .find((s): s is SleepSession & { end: number } => typeof s.end === 'number');
   const lastWakeMs = lastFinished ? Math.max(0, now - lastFinished.end) : null;
 
-  return { avgWakeMs: base, p25, p75, low, high, lastWakeMs, sampleSize: wSorted.length };
+  const dayKeys = new Set<string>();
+  for (const session of sorted) {
+    const sessionStart = Math.max(start, session.start);
+    const sessionEnd = Math.min(end, session.end ?? now);
+    if (sessionEnd <= sessionStart) continue;
+
+    let cursor = new Date(sessionStart);
+    cursor.setHours(0, 0, 0, 0);
+    const endDate = new Date(sessionEnd);
+    endDate.setHours(0, 0, 0, 0);
+
+    while (cursor.getTime() <= endDate.getTime()) {
+      dayKeys.add(
+        `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
+      );
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return {
+    avgWakeMs: base,
+    p25,
+    p75,
+    low,
+    high,
+    lastWakeMs,
+    sampleSize: wSorted.length,
+    daysWithData: dayKeys.size,
+  };
 }
 
 export async function addGrowthEntry(params: {

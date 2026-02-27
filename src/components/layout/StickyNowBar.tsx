@@ -23,6 +23,7 @@ import { useToast } from '@/components/feedback/useToast';
  * - Only quick action: start/stop sleep
  */
 export default function StickyNowBar() {
+  const minDaysForSmartScale = 3;
   const [child, setChild] = useState<Child | null>(null);
   const [running, setRunning] = useState<SleepSession | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -31,6 +32,7 @@ export default function StickyNowBar() {
   const [wwLow, setWwLow] = useState(90 * 60 * 1000);
   const [wwHigh, setWwHigh] = useState(110 * 60 * 1000);
   const [wwSamples, setWwSamples] = useState(0);
+  const [wwDaysWithData, setWwDaysWithData] = useState(0);
   const [wakeStart, setWakeStart] = useState<number | null>(null);
 
   const pathname = usePathname();
@@ -54,6 +56,7 @@ export default function StickyNowBar() {
     setWwLow(ww.low);
     setWwHigh(ww.high);
     setWwSamples(ww.sampleSize);
+    setWwDaysWithData(ww.daysWithData);
     setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
   }, []);
 
@@ -94,13 +97,15 @@ export default function StickyNowBar() {
     () => (wakeStart ? Math.max(0, now - wakeStart) : null),
     [wakeStart, now],
   );
+  const hasSmartWakeScale = wwDaysWithData >= minDaysForSmartScale;
 
   const hint = useMemo(() => {
     if (running) return null;
+    if (!hasSmartWakeScale) return null;
     if (sinceWake === null) return null;
     const remaining = wwHigh - sinceWake;
     return { isNow: remaining <= 0, remaining: Math.max(0, remaining) };
-  }, [running, sinceWake, wwHigh]);
+  }, [running, sinceWake, wwHigh, hasSmartWakeScale]);
 
   if (isHiddenRoute) return null;
   if (!child) return null;
@@ -147,7 +152,9 @@ export default function StickyNowBar() {
                     ? hint.isNow
                       ? `Пора укладывать · окно ${formatDuration(wwLow)}—${formatDuration(wwHigh)} (${wwSamples})`
                       : `До сна ~ ${formatDuration(hint.remaining)} · окно ${formatDuration(wwLow)}—${formatDuration(wwHigh)} (${wwSamples})`
-                    : `${child.name}`}
+                    : sinceWake !== null && !hasSmartWakeScale
+                      ? `Интеллектуальная шкала появится после 3 дней данных`
+                      : `${child.name}`}
               </div>
             </div>
 
@@ -196,7 +203,7 @@ export default function StickyNowBar() {
             </button>
           </div>
 
-          {!running && sinceWake !== null ? (
+          {!running && sinceWake !== null && hasSmartWakeScale ? (
             <div className="stickyNowBar">
               <WakeWindowIndicator
                 sinceWakeMs={sinceWake}
@@ -205,6 +212,13 @@ export default function StickyNowBar() {
                 sampleSize={wwSamples}
                 compact
               />
+            </div>
+          ) : !running && sinceWake !== null ? (
+            <div className="stickyNowBar">
+              <div className="small" style={{ opacity: 0.92 }}>
+                Интеллектуальная шкала появится после 3 дней данных ({wwDaysWithData}/
+                {minDaysForSmartScale}).
+              </div>
             </div>
           ) : null}
         </div>

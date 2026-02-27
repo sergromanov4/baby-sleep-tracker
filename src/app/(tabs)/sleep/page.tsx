@@ -6,6 +6,7 @@ import Header from '@/components/layout/Header';
 import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
 import WakeWindowIndicator from '@/components/indicators/WakeWindowIndicator';
 import SleepDurationIndicator from '@/components/indicators/SleepDurationIndicator';
+import AppSelect from '@/components/forms/AppSelect';
 // import SleepTimeline24h from '@/components/timeline/SleepTimeline24h';
 import {
   computeWakeWindowModel,
@@ -24,6 +25,7 @@ export default function SleepPage() {
 }
 
 function SleepScreen({ child }: { child: Child }) {
+  const minDaysForSmartScale = 3;
   const [kind, setKind] = useState<SleepKind>('nap');
   const [running, setRunning] = useState<SleepSession | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -31,6 +33,7 @@ function SleepScreen({ child }: { child: Child }) {
   const [wwLow, setWwLow] = useState<number>(90 * 60 * 1000);
   const [wwHigh, setWwHigh] = useState<number>(110 * 60 * 1000);
   const [wwSamples, setWwSamples] = useState<number>(0);
+  const [wwDaysWithData, setWwDaysWithData] = useState<number>(0);
   const { show, Toast } = useToast();
 
   useEffect(() => {
@@ -44,6 +47,7 @@ function SleepScreen({ child }: { child: Child }) {
       setWwLow(ww.low);
       setWwHigh(ww.high);
       setWwSamples(ww.sampleSize);
+      setWwDaysWithData(ww.daysWithData);
       setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
     })();
   }, [child.id]);
@@ -61,9 +65,11 @@ function SleepScreen({ child }: { child: Child }) {
     if (!running) return 0;
     return Math.max(0, now - running.start);
   }, [running, now]);
+  const hasSmartWakeScale = wwDaysWithData >= minDaysForSmartScale;
 
   const bedtimeHint = useMemo(() => {
     if (running) return null;
+    if (!hasSmartWakeScale) return null;
     if (sinceWake === null) return null;
 
     // Use the upper bound of the "optimal" corridor as an estimate.
@@ -71,7 +77,7 @@ function SleepScreen({ child }: { child: Child }) {
     const remaining = target - sinceWake;
     const isNow = remaining <= 0;
     return { remaining: Math.max(0, remaining), isNow, target };
-  }, [sinceWake, running, wwHigh]);
+  }, [sinceWake, running, wwHigh, hasSmartWakeScale]);
   const activeKind = running?.kind ?? kind;
 
   const buttonVisual = useMemo(() => {
@@ -84,9 +90,10 @@ function SleepScreen({ child }: { child: Child }) {
 
   const isBedtimeNow = useMemo(() => {
     if (running) return false;
+    if (!hasSmartWakeScale) return false;
     if (sinceWake === null) return false;
     return sinceWake >= wwHigh;
-  }, [running, sinceWake, wwHigh]);
+  }, [running, sinceWake, wwHigh, hasSmartWakeScale]);
 
   return (
     <>
@@ -108,16 +115,16 @@ function SleepScreen({ child }: { child: Child }) {
 
           <div className="row" style={{ justifyContent: 'center' }}>
             <span className={`pill ${kind === 'nap' ? '' : ''}`}>Тип</span>
-            <select
-              className="select"
+            <AppSelect
               value={kind}
-              onChange={(e) => setKind(toSleepKind(e.target.value))}
+              onChange={(nextKind) => setKind(nextKind)}
+              options={[
+                { value: 'nap', label: 'Дневной сон' },
+                { value: 'night', label: 'Ночной сон' },
+              ]}
               disabled={!!running}
               style={{ maxWidth: 180 }}
-            >
-              <option value="nap">Дневной сон</option>
-              <option value="night">Ночной сон</option>
-            </select>
+            />
           </div>
 
           <button
@@ -141,6 +148,7 @@ function SleepScreen({ child }: { child: Child }) {
                   setWwLow(ww.low);
                   setWwHigh(ww.high);
                   setWwSamples(ww.sampleSize);
+                  setWwDaysWithData(ww.daysWithData);
                   setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
                   show('Сон завершён');
                 }
@@ -198,9 +206,34 @@ function SleepScreen({ child }: { child: Child }) {
           ) : null}
 
           <div style={{ marginTop: 12, textAlign: 'left' }}>
-            {running ? (
+            {running && hasSmartWakeScale ? (
               <SleepDurationIndicator elapsedMs={elapsed} kind={activeKind} />
-            ) : sinceWake !== null ? (
+            ) : running ? (
+              <div className="stack" style={{ gap: 10 }}>
+                <div
+                  className="row"
+                  style={{ justifyContent: 'space-between', alignItems: 'baseline' }}
+                >
+                  <div style={{ fontWeight: 900 }}>Шкала сна: —</div>
+                  <span className="pill">Недостаточно данных</span>
+                </div>
+                <div
+                  style={{
+                    height: 10,
+                    borderRadius: 999,
+                    background:
+                      'linear-gradient(90deg, rgba(46,169,255,0.22), rgba(165,88,255,0.22), rgba(255,74,122,0.18))',
+                    border: '1px solid rgba(255,255,255,0.14)',
+                  }}
+                />
+                <div className="small" style={{ opacity: 0.9 }}>
+                  После заполнения информации за 3 дня у вас появится интеллектуальная шкала.
+                </div>
+                <div className="small" style={{ opacity: 0.9 }}>
+                  Сейчас заполнено: {wwDaysWithData} из {minDaysForSmartScale} дней.
+                </div>
+              </div>
+            ) : sinceWake !== null && hasSmartWakeScale ? (
               <WakeWindowIndicator
                 sinceWakeMs={sinceWake}
                 lowMs={wwLow}
@@ -214,7 +247,9 @@ function SleepScreen({ child }: { child: Child }) {
                   style={{ justifyContent: 'space-between', alignItems: 'baseline' }}
                 >
                   <div style={{ fontWeight: 900 }}>ВБ сейчас: —</div>
-                  <span className="pill">Нет данных</span>
+                  <span className="pill">
+                    {hasSmartWakeScale ? 'Нет данных сейчас' : 'Недостаточно данных'}
+                  </span>
                 </div>
                 <div
                   style={{
@@ -226,8 +261,15 @@ function SleepScreen({ child }: { child: Child }) {
                   }}
                 />
                 <div className="small" style={{ opacity: 0.9 }}>
-                  Запишите хотя бы 2 сна, чтобы мы рассчитали окна бодрствования.
+                  {hasSmartWakeScale
+                    ? 'Запишите или завершите сон, чтобы показать текущую интеллектуальную шкалу бодрствования.'
+                    : 'После заполнения информации за 3 дня у вас появится интеллектуальная шкала.'}
                 </div>
+                {!hasSmartWakeScale ? (
+                  <div className="small" style={{ opacity: 0.9 }}>
+                    Сейчас заполнено: {wwDaysWithData} из {minDaysForSmartScale} дней.
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -247,8 +289,4 @@ function SleepScreen({ child }: { child: Child }) {
       {Toast}
     </>
   );
-}
-
-function toSleepKind(value: string): SleepKind {
-  return value === 'night' ? 'night' : 'nap';
 }

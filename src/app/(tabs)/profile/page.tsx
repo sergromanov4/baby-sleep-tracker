@@ -15,6 +15,7 @@ import type { Child, GrowthEntry, Sex } from '@/lib/types';
 import { ageInMonths, formatDateRu } from '@/lib/time';
 import { exportAllToExcel } from '@/lib/exportExcel';
 import { useToast } from '@/components/feedback/useToast';
+import AppSelect from '@/components/forms/AppSelect';
 
 export default function ProfilePage() {
   return (
@@ -80,23 +81,16 @@ function ProfileScreen({ child }: { child: Child }) {
       <div className="stack">
         <div className="card stack">
           <div style={{ fontWeight: 900 }}>Активный ребенок</div>
-          <select
-            className="select"
+          <AppSelect
             value={activeId}
-            onChange={async (e) => {
-              const id = e.target.value;
+            onChange={async (id) => {
               setActiveId(id);
               await setActiveChild(id);
               // Refresh by hard navigation
               location.reload();
             }}
-          >
-            {children.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            options={children.map((c) => ({ value: c.id, label: c.name }))}
+          />
 
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div className="small">Дата рождения</div>
@@ -160,14 +154,14 @@ function ProfileScreen({ child }: { child: Child }) {
               </div>
               <div className="field">
                 <div className="label">Пол</div>
-                <select
-                  className="select"
+                <AppSelect
                   value={sex}
-                  onChange={(e) => setSex(toSex(e.target.value))}
-                >
-                  <option value="female">Девочка</option>
-                  <option value="male">Мальчик</option>
-                </select>
+                  onChange={(nextSex) => setSex(nextSex)}
+                  options={[
+                    { value: 'female', label: 'Девочка' },
+                    { value: 'male', label: 'Мальчик' },
+                  ]}
+                />
               </div>
               <button
                 className="button buttonPrimary buttonFull"
@@ -203,24 +197,23 @@ function ProfileScreen({ child }: { child: Child }) {
               <div style={{ fontWeight: 800 }}>Режим данных</div>
               <div className="small">local — только устройство · cloud — синхронизация (позже)</div>
             </div>
-            <select
-              className="select"
+            <AppSelect
               value={authMode}
-              onChange={async (e) => {
-                const v = toAuthMode(e.target.value);
-                setAuthModeState(v);
-                await setAuthMode(v);
+              onChange={async (nextAuthMode) => {
+                setAuthModeState(nextAuthMode);
+                await setAuthMode(nextAuthMode);
                 show(
-                  v === 'cloud'
+                  nextAuthMode === 'cloud'
                     ? 'Cloud режим включён (пока без логина — работает как local)'
                     : 'Local режим включён',
                 );
               }}
+              options={[
+                { value: 'local', label: 'local' },
+                { value: 'cloud', label: 'cloud' },
+              ]}
               style={{ maxWidth: 150 }}
-            >
-              <option value="local">local</option>
-              <option value="cloud">cloud</option>
-            </select>
+            />
           </div>
 
           <div className="row" style={{ justifyContent: 'space-between', marginTop: 10 }}>
@@ -244,12 +237,4 @@ function ProfileScreen({ child }: { child: Child }) {
       {Toast}
     </>
   );
-}
-
-function toSex(value: string): Sex {
-  return value === 'male' ? 'male' : 'female';
-}
-
-function toAuthMode(value: string): 'local' | 'cloud' {
-  return value === 'cloud' ? 'cloud' : 'local';
 }

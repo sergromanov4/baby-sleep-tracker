@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/layout/Header';
 import { useToast } from '@/components/feedback/useToast';
+import AppSelect from '@/components/forms/AppSelect';
 import { addGrowthEntry, deleteGrowthEntry, getActiveChild, listGrowthEntries } from '@/lib/repo';
 import type { Child, GrowthEntry } from '@/lib/types';
 import { ageInMonths, formatDateRu, fromYmd, toYmd } from '@/lib/time';
@@ -251,15 +252,15 @@ function GrowthPageContent() {
             <div style={{ fontWeight: 900 }}>
               {metric === 'weight' ? 'Вес по возрасту' : 'Рост по возрасту'} (WHO P3/P50/P97)
             </div>
-            <select
-              className="select"
+            <AppSelect
               value={metric}
-              onChange={(e) => setMetric(toGrowthMetric(e.target.value))}
+              onChange={(nextMetric) => setMetric(nextMetric)}
+              options={[
+                { value: 'weight', label: 'Вес' },
+                { value: 'height', label: 'Рост' },
+              ]}
               style={{ maxWidth: 160 }}
-            >
-              <option value="weight">Вес</option>
-              <option value="height">Рост</option>
-            </select>
+            />
           </div>
           <canvas ref={canvasRef} className="canvas" style={{ height: 220 }} />
           <div className="small">Линии: P3/P50/P97. Белые точки — ваши замеры.</div>

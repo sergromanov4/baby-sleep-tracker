@@ -20,6 +20,7 @@ import { getSleepErrorCode } from '@/lib/sleepRules';
 import type { Child, SleepKind, SleepSession } from '@/lib/types';
 import { endOfDayMs, formatDuration, formatTime, startOfDayMs, toYmd } from '@/lib/time';
 import { useToast } from '@/components/feedback/useToast';
+import AppSelect from '@/components/forms/AppSelect';
 
 const TAGS = [
   'На руках',
@@ -38,6 +39,7 @@ export default function DayPage() {
 }
 
 function DayScreen({ child }: { child: Child }) {
+  const minDaysForSmartScale = 3;
   const router = useRouter();
   const search = useSearchParams();
   const [dateYmd, setDateYmd] = useState(() => toYmd(new Date()));
@@ -47,6 +49,7 @@ function DayScreen({ child }: { child: Child }) {
   const [wwLow, setWwLow] = useState<number>(90 * 60 * 1000);
   const [wwHigh, setWwHigh] = useState<number>(110 * 60 * 1000);
   const [wwSamples, setWwSamples] = useState<number>(0);
+  const [wwDaysWithData, setWwDaysWithData] = useState<number>(0);
   const { show, Toast } = useToast();
   const openManualEditor = useCallback(() => {
     const start = Date.now();
@@ -88,6 +91,7 @@ function DayScreen({ child }: { child: Child }) {
     setWwLow(ww.low);
     setWwHigh(ww.high);
     setWwSamples(ww.sampleSize);
+    setWwDaysWithData(ww.daysWithData);
   }, [child.id, dayStart, dayEnd]);
 
   useEffect(() => {
@@ -144,6 +148,7 @@ function DayScreen({ child }: { child: Child }) {
     const sinceWake = lastEnd ? Math.max(0, now - lastEnd) : null;
     return { total, nap, night, count: sortedItems.length, sinceWake };
   }, [rows, sortedItems, dayStart, dayEnd]);
+  const hasSmartWakeScale = wwDaysWithData >= minDaysForSmartScale;
 
   return (
     <>
@@ -159,19 +164,18 @@ function DayScreen({ child }: { child: Child }) {
               <div className="small">{child.name}</div>
             </div>
             <div className="row" style={{ gap: 8 }}>
-              <select
-                className="select"
+              <AppSelect
                 value={rangeMode}
-                onChange={async (e) => {
-                  const v = toDayRangeMode(e.target.value);
-                  setRangeMode(v);
-                  await setDayRangeMode(v);
+                onChange={async (nextRangeMode) => {
+                  setRangeMode(nextRangeMode);
+                  await setDayRangeMode(nextRangeMode);
                 }}
+                options={[
+                  { value: 'today', label: 'По дням' },
+                  { value: 'last24', label: 'Последние 24ч' },
+                ]}
                 style={{ maxWidth: 170 }}
-              >
-                <option value="today">По дням</option>
-                <option value="last24">Последние 24ч</option>
-              </select>
+              />
               {rangeMode === 'today' ? (
                 <input
                   className="input"
@@ -193,7 +197,7 @@ function DayScreen({ child }: { child: Child }) {
             <div className="small">Сейчас ВБ: {formatDuration(summary.sinceWake)}</div>
           ) : null}
 
-          {summary.sinceWake !== null ? (
+          {summary.sinceWake !== null && hasSmartWakeScale ? (
             <div style={{ marginTop: 10 }}>
               <WakeWindowIndicator
                 sinceWakeMs={summary.sinceWake}
@@ -202,6 +206,24 @@ function DayScreen({ child }: { child: Child }) {
                 sampleSize={wwSamples}
               />
             </div>
+          ) : summary.sinceWake !== null ? (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 12,
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(255,255,255,0.06)',
+              }}
+            >
+              <div className="small" style={{ opacity: 0.95 }}>
+                После заполнения информации за 3 дня у вас появится интеллектуальная шкала
+                бодрствования.
+              </div>
+              <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>
+                Сейчас заполнено: {wwDaysWithData} из {minDaysForSmartScale} дней.
+              </div>
+            </div>
           ) : null}
 
           <div className="list">
@@ -209,15 +231,7 @@ function DayScreen({ child }: { child: Child }) {
               <div className="empty">
                 <div className="emptyTitle">Пока нет записей сна</div>
                 <div className="emptyText">
-                  Начните с большого круга на вкладке «Сон» или добавьте сон вручную.
-                </div>
-                <div className="row" style={{ gap: 10, flexWrap: 'wrap' }}>
-                  <a className="button" href="/sleep">
-                    Перейти к сну
-                  </a>
-                  <button className="button buttonPrimary" onClick={openManualEditor}>
-                    ＋ Добавить сон
-                  </button>
+                  Начните с большого кнопки на вкладке «Сон» или добавьте сон вручную.
                 </div>
               </div>
             ) : null}
@@ -329,14 +343,6 @@ function fromLocalInputValue(v: string): number {
   return new Date(v).getTime();
 }
 
-function toSleepKind(value: string): SleepKind {
-  return value === 'night' ? 'night' : 'nap';
-}
-
-function toDayRangeMode(value: string): 'today' | 'last24' {
-  return value === 'today' ? 'today' : 'last24';
-}
-
 function EditSleepModal({
   session,
   onClose,
@@ -355,25 +361,34 @@ function EditSleepModal({
   const [note, setNote] = useState(session.note ?? '');
   const [tags, setTags] = useState<string[]>(session.tags ?? []);
   const [saving, setSaving] = useState(false);
-  const [autoStatus, setAutoStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
 
   const startMs = fromLocalInputValue(start);
   const endMs = fromLocalInputValue(end);
 
-  // Autosave for existing sessions (no modal confirmations).
-  useEffect(() => {
-    if (isNew) return;
+  const saveSession = async () => {
     setError(null);
-    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      setError('Проверьте дату/время');
+      return;
+    }
     if (endMs <= startMs) {
       setError('Конец должен быть позже начала');
       return;
     }
 
-    const t = setTimeout(async () => {
-      setAutoStatus('saving');
-      try {
+    setSaving(true);
+    try {
+      if (isNew) {
+        await createSleepSessionManual({
+          childId: session.childId,
+          kind,
+          start: startMs,
+          end: endMs,
+          note,
+          tags,
+        });
+      } else {
         await updateSleepSession(session.id, {
           kind,
           start: startMs,
@@ -381,20 +396,17 @@ function EditSleepModal({
           note: note.trim() || undefined,
           tags,
         });
-        setAutoStatus('saved');
-      } catch (error: unknown) {
-        const code = getSleepErrorCode(error);
-        if (code === 'SLEEP_OVERLAP')
-          setError('Пересекается с другой записью сна. Подвиньте время.');
-        else if (code === 'SLEEP_END_BEFORE_START') setError('Конец должен быть позже начала');
-        else setError('Не удалось сохранить. Проверьте время.');
-        setAutoStatus('error');
       }
-    }, 450);
-
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, start, end, note, tags]);
+      await onSaved();
+    } catch (error: unknown) {
+      const code = getSleepErrorCode(error);
+      if (code === 'SLEEP_OVERLAP') setError('Пересекается с другой записью сна. Подвиньте время.');
+      else if (code === 'SLEEP_END_BEFORE_START') setError('Конец должен быть позже начала');
+      else setError('Не удалось сохранить. Проверьте время.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div role="dialog" aria-modal="true" className="modalOverlay" onClick={onClose}>
@@ -417,14 +429,14 @@ function EditSleepModal({
         <div className="stack">
           <div className="field">
             <div className="label">Тип сна</div>
-            <select
-              className="select"
+            <AppSelect
               value={kind}
-              onChange={(e) => setKind(toSleepKind(e.target.value))}
-            >
-              <option value="nap">Дневной сон</option>
-              <option value="night">Ночной сон</option>
-            </select>
+              onChange={(nextKind) => setKind(nextKind)}
+              options={[
+                { value: 'nap', label: 'Дневной сон' },
+                { value: 'night', label: 'Ночной сон' },
+              ]}
+            />
           </div>
 
           <div className="field">
@@ -486,70 +498,17 @@ function EditSleepModal({
             </div>
           ) : null}
 
-          {!isNew ? (
-            <div
-              className="small"
-              style={{ color: autoStatus === 'error' ? 'var(--danger)' : 'rgba(248,250,252,0.75)' }}
-            >
-              {autoStatus === 'saving'
-                ? 'Сохраняю…'
-                : autoStatus === 'saved'
-                  ? 'Сохранено'
-                  : autoStatus === 'error'
-                    ? 'Есть ошибка — исправьте поля выше'
-                    : 'Автосохранение включено'}
-            </div>
-          ) : null}
+          <button className="button buttonFull" disabled={saving} onClick={onClose}>
+            Отмена
+          </button>
 
-          <div className="row" style={{ justifyContent: 'space-between' }}>
-            <button className="button" onClick={onClose}>
-              {isNew ? 'Отмена' : 'Готово'}
-            </button>
-            {isNew ? (
-              <button
-                className="button buttonPrimary"
-                disabled={saving}
-                onClick={async () => {
-                  setError(null);
-                  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
-                    setError('Проверьте дату/время');
-                    return;
-                  }
-                  if (endMs <= startMs) {
-                    setError('Конец должен быть позже начала');
-                    return;
-                  }
-                  setSaving(true);
-                  try {
-                    await createSleepSessionManual({
-                      childId: session.childId,
-                      kind,
-                      start: startMs,
-                      end: endMs,
-                      note,
-                      tags,
-                    });
-                    await onSaved();
-                  } catch (error: unknown) {
-                    const code = getSleepErrorCode(error);
-                    if (code === 'SLEEP_OVERLAP')
-                      setError('Пересекается с другой записью сна. Подвиньте время.');
-                    else if (code === 'SLEEP_END_BEFORE_START')
-                      setError('Конец должен быть позже начала');
-                    else setError('Не удалось сохранить. Проверьте время.');
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-              >
-                {saving ? 'Сохраняю…' : 'Добавить'}
-              </button>
-            ) : (
-              <span className="pill" style={{ opacity: 0.85 }}>
-                Auto-save
-              </span>
-            )}
-          </div>
+          <button
+            className="button buttonPrimary buttonFull"
+            disabled={saving}
+            onClick={saveSession}
+          >
+            {saving ? 'Сохраняю…' : 'Сохранить'}
+          </button>
 
           {!isNew ? (
             <button
