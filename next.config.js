@@ -15,6 +15,9 @@ const nextConfig = {
   // Ensure assets/links work when the site is served from /<repo>.
   basePath,
   assetPrefix: basePath || undefined,
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath,
+  },
   // Disable image optimization to allow static export without the image proxy.
   images: {
     unoptimized: true,

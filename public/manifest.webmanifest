@@ -1,0 +1,61 @@
+{
+  "name": "Baby Sleep Tracker",
+  "short_name": "Sleep Tracker",
+  "description": "Трекер сна, бодрствования и роста ребенка",
+  "lang": "ru",
+  "start_url": "./sleep/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1026",
+  "theme_color": "#0b1026",
+  "categories": ["health", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Сон",
+      "short_name": "Сон",
+      "description": "Открыть быстрый трекер сна",
+      "url": "./sleep/",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "День",
+      "short_name": "День",
+      "description": "Открыть дневник сна",
+      "url": "./day/",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
