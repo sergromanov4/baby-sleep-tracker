@@ -17,7 +17,13 @@ export default function StatsPage() {
 function StatsScreen({ child }: { child: Child }) {
   const [dateYmd, setDateYmd] = useState(() => toYmd(new Date()));
   const [sessions, setSessions] = useState<SleepSession[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const { t, formatDurationValue } = useI18n();
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -31,20 +37,30 @@ function StatsScreen({ child }: { child: Child }) {
   const computed = useMemo(() => {
     const dayStart = startOfDayMs(fromYmd(dateYmd));
     const dayEndExclusive = dayStart + DAY_MS;
-    const now = Date.now();
+    const statsEndExclusive = getStatsEndExclusive(dayStart, dayEndExclusive, nowMs);
 
-    const clamped = sessions
+    const resolvedSessions = sessions
       .map((session) => {
-        const rawEnd = session.end ?? now;
-        const start = Math.max(session.start, dayStart);
-        const end = Math.min(rawEnd, dayEndExclusive);
-        return { ...session, start, end, dur: Math.max(0, end - start) };
+        const end = Math.min(session.end ?? nowMs, nowMs);
+        return { ...session, resolvedEnd: end, dur: Math.max(0, end - session.start) };
       })
-      .filter((session) => session.dur > 0)
+      .filter((session) => session.dur > 0);
+
+    const attributedSleep = resolvedSessions
+      .filter((session) => session.start >= dayStart && session.start < dayEndExclusive)
+      .sort((a, b) => a.start - b.start);
+
+    const sleepIntervalsForWake = resolvedSessions
+      .map((session) => {
+        const start = Math.max(session.start, dayStart);
+        const end = Math.min(session.resolvedEnd, statsEndExclusive);
+        return { start, end, dur: Math.max(0, end - start) };
+      })
+      .filter((interval) => interval.dur > 0)
       .sort((a, b) => a.start - b.start);
 
     const mergedSleep: Array<{ start: number; end: number }> = [];
-    for (const interval of clamped) {
+    for (const interval of sleepIntervalsForWake) {
       const prev = mergedSleep[mergedSleep.length - 1];
       if (!prev || interval.start > prev.end) {
         mergedSleep.push({ start: interval.start, end: interval.end });
@@ -53,25 +69,22 @@ function StatsScreen({ child }: { child: Child }) {
       }
     }
 
-    const totalSleep = mergedSleep.reduce(
-      (acc, interval) => acc + (interval.end - interval.start),
-      0,
-    );
-    const totalWake = Math.max(0, DAY_MS - totalSleep);
-
     const wakeWindows: number[] = [];
     let cursor = dayStart;
     for (const interval of mergedSleep) {
       if (interval.start > cursor) wakeWindows.push(interval.start - cursor);
       cursor = Math.max(cursor, interval.end);
     }
-    if (cursor < dayEndExclusive) wakeWindows.push(dayEndExclusive - cursor);
+    if (cursor < statsEndExclusive) wakeWindows.push(statsEndExclusive - cursor);
+
+    const totalSleep = attributedSleep.reduce((acc, session) => acc + session.dur, 0);
+    const totalWake = wakeWindows.reduce((acc, dur) => acc + dur, 0);
 
     const avgWake = wakeWindows.length
       ? wakeWindows.reduce((acc, dur) => acc + dur, 0) / wakeWindows.length
       : 0;
 
-    const naps = clamped.filter((session) => session.kind === 'nap');
+    const naps = attributedSleep.filter((session) => session.kind === 'nap');
     const avgNapSleep = naps.length ? naps.reduce((acc, nap) => acc + nap.dur, 0) / naps.length : 0;
 
     const dayStartWake = findDayStartWakeTime(sessions, dayStart, dayEndExclusive);
@@ -83,7 +96,7 @@ function StatsScreen({ child }: { child: Child }) {
       .sort((a, b) => a.start - b.start)[0]?.start;
 
     return {
-      hasData: clamped.length > 0,
+      hasData: attributedSleep.length > 0 || wakeWindows.length > 0,
       totalWake,
       totalSleep,
       avgWake,
@@ -91,7 +104,7 @@ function StatsScreen({ child }: { child: Child }) {
       dayStartWake: dayStartWake ?? null,
       nightSleepStart: nightSleepStart ?? null,
     };
-  }, [dateYmd, sessions]);
+  }, [dateYmd, nowMs, sessions]);
 
   return (
     <>
@@ -161,6 +174,12 @@ function StatsScreen({ child }: { child: Child }) {
       </div>
     </>
   );
+}
+
+function getStatsEndExclusive(dayStart: number, dayEndExclusive: number, nowMs: number): number {
+  if (nowMs <= dayStart) return dayStart;
+  if (nowMs >= dayEndExclusive) return dayEndExclusive;
+  return nowMs;
 }
 
 function findDayStartWakeTime(
