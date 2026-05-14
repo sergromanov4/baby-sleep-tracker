@@ -11,6 +11,8 @@ import type {
 } from './types';
 import { SleepDomainError, validateEndAfterStart, validateNoOverlap } from './sleepRules';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function inferSleepKindByTime(ms: number): SleepKind {
   const d = new Date(ms);
   const h = d.getHours();
@@ -252,6 +254,79 @@ function percentile(sorted: number[], p: number): number {
   return sorted[lo]! * (1 - w) + sorted[hi]! * w;
 }
 
+function localDayKey(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+type CompleteWakeDay = {
+  key: string;
+  wakeStart: number;
+  nightStart: number;
+};
+
+function findCompleteWakeDays(
+  sorted: SleepSession[],
+  rangeStart: number,
+  rangeEnd: number,
+): CompleteWakeDay[] {
+  const completeDays: CompleteWakeDay[] = [];
+  const seen = new Set<string>();
+  const finishedNights = sorted.filter(
+    (session): session is SleepSession & { end: number } =>
+      session.kind === 'night' && typeof session.end === 'number',
+  );
+
+  for (const morningNight of finishedNights) {
+    const wakeStart = morningNight.end;
+    if (wakeStart < rangeStart || wakeStart >= rangeEnd) continue;
+
+    const key = localDayKey(wakeStart);
+    if (seen.has(key)) continue;
+
+    const nextNight = sorted.find(
+      (session) =>
+        session.kind === 'night' &&
+        session.id !== morningNight.id &&
+        session.start > wakeStart &&
+        session.start < rangeEnd &&
+        localDayKey(session.start) === key,
+    );
+
+    if (!nextNight) continue;
+
+    seen.add(key);
+    completeDays.push({ key, wakeStart, nightStart: nextNight.start });
+  }
+
+  return completeDays;
+}
+
+function collectWakeWindowsForCompleteDay(
+  sorted: SleepSession[],
+  completeDay: CompleteWakeDay,
+  now: number,
+): number[] {
+  const windows: number[] = [];
+  let cursor = completeDay.wakeStart;
+
+  const daySessions = sorted.filter(
+    (session) => session.start > completeDay.wakeStart && session.start <= completeDay.nightStart,
+  );
+
+  for (const session of daySessions) {
+    if (session.start > cursor) windows.push(session.start - cursor);
+    if (session.kind === 'night' && session.start === completeDay.nightStart) break;
+
+    const sessionEnd = session.end ?? now;
+    cursor = Math.max(cursor, sessionEnd);
+  }
+
+  return windows;
+}
+
 /**
  * Smart wake-window model used for the "ВБ" indicator.
  * Returns an "optimal" range based on recent wake windows.
@@ -270,18 +345,15 @@ export async function computeWakeWindowModel(
   daysWithData: number;
 }> {
   const end = Date.now();
-  const start = end - days * 24 * 60 * 60 * 1000;
+  const start = end - days * DAY_MS;
   const list = await listSleepSessionsInRange(childId, start, end);
   const now = Date.now();
   const sorted = [...list].sort((a, b) => a.start - b.start);
 
-  const windows: number[] = [];
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const a = sorted[i]!;
-    const b = sorted[i + 1]!;
-    const aEnd = a.end ?? now;
-    if (aEnd < b.start) windows.push(b.start - aEnd);
-  }
+  const completeWakeDays = findCompleteWakeDays(sorted, start, end);
+  const windows = completeWakeDays.flatMap((completeDay) =>
+    collectWakeWindowsForCompleteDay(sorted, completeDay, now),
+  );
 
   const wSorted = [...windows].sort((a, b) => a - b);
   const avgWakeMs = wSorted.length ? wSorted.reduce((x, y) => x + y, 0) / wSorted.length : 0;
@@ -308,25 +380,6 @@ export async function computeWakeWindowModel(
     .find((s): s is SleepSession & { end: number } => typeof s.end === 'number');
   const lastWakeMs = lastFinished ? Math.max(0, now - lastFinished.end) : null;
 
-  const dayKeys = new Set<string>();
-  for (const session of sorted) {
-    const sessionStart = Math.max(start, session.start);
-    const sessionEnd = Math.min(end, session.end ?? now);
-    if (sessionEnd <= sessionStart) continue;
-
-    let cursor = new Date(sessionStart);
-    cursor.setHours(0, 0, 0, 0);
-    const endDate = new Date(sessionEnd);
-    endDate.setHours(0, 0, 0, 0);
-
-    while (cursor.getTime() <= endDate.getTime()) {
-      dayKeys.add(
-        `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`,
-      );
-      cursor.setDate(cursor.getDate() + 1);
-    }
-  }
-
   return {
     avgWakeMs: base,
     p25,
@@ -335,7 +388,7 @@ export async function computeWakeWindowModel(
     high,
     lastWakeMs,
     sampleSize: wSorted.length,
-    daysWithData: dayKeys.size,
+    daysWithData: completeWakeDays.length,
   };
 }
 

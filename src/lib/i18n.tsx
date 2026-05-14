@@ -61,8 +61,8 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.badgeNotEnoughData': 'Недостаточно данных',
     'sleep.badgeNoDataNow': 'Нет данных сейчас',
     'sleep.scaleAfter3Days':
-      'После заполнения информации за 3 дня у вас появится интеллектуальная шкала.',
-    'sleep.scaleFilled': 'Сейчас заполнено: {filled} из {total} дней.',
+      'После заполнения 3 полных дней у вас появится интеллектуальная шкала.',
+    'sleep.scaleFilled': 'Сейчас заполнено полных дней: {filled} из {total}.',
     'sleep.scaleNeedDataNow':
       'Запишите или завершите сон, чтобы показать текущую интеллектуальную шкалу бодрствования.',
     'sleep.profile': 'Профиль: {name}',
@@ -77,8 +77,8 @@ const messages: Record<AppLanguage, Dictionary> = {
     'day.pillNight': 'Ночь',
     'day.currentWake': 'Сейчас ВБ: {duration}',
     'day.scaleAfter3Days':
-      'После заполнения информации за 3 дня у вас появится интеллектуальная шкала бодрствования.',
-    'day.scaleFilled': 'Сейчас заполнено: {filled} из {total} дней.',
+      'После заполнения 3 полных дней у вас появится интеллектуальная шкала бодрствования.',
+    'day.scaleFilled': 'Сейчас заполнено полных дней: {filled} из {total}.',
     'day.emptyTitle': 'Пока нет записей сна',
     'day.emptyText': 'Начните с большой кнопки на вкладке «Сон» или добавьте сон вручную.',
     'day.rowNight': 'Ночь',
@@ -209,7 +209,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sticky.runningSub': '{name} · нажмите стоп, когда проснётся',
     'sticky.hintNow': 'Пора укладывать · окно {low}—{high} ({samples})',
     'sticky.hintUntil': 'До сна ~ {remaining} · окно {low}—{high} ({samples})',
-    'sticky.hintNeedData': 'Интеллектуальная шкала появится после 3 дней данных',
+    'sticky.hintNeedData': 'Интеллектуальная шкала появится после 3 полных дней',
     'sticky.toastStopped': 'Сон завершён',
     'sticky.toastStarted': 'Сон начался',
     'sticky.errorAlreadyRunning': 'Сон уже идёт',
@@ -222,7 +222,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sticky.collapsePanel': 'Свернуть панель',
     'sticky.collapse': 'Свернуть',
     'sticky.needDataScale':
-      'Интеллектуальная шкала появится после 3 дней данных ({filled}/{total}).',
+      'Интеллектуальная шкала появится после 3 полных дней ({filled}/{total}).',
 
     'indicator.wake.tooEarly': 'Рановато',
     'indicator.wake.optimal': 'Оптимально',
@@ -293,8 +293,8 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleWakeNow': 'Wake window now: —',
     'sleep.badgeNotEnoughData': 'Not enough data',
     'sleep.badgeNoDataNow': 'No current data',
-    'sleep.scaleAfter3Days': 'After 3 days of data, the intelligent scale will appear.',
-    'sleep.scaleFilled': 'Filled: {filled} of {total} days.',
+    'sleep.scaleAfter3Days': 'After 3 full tracked days, the intelligent scale will appear.',
+    'sleep.scaleFilled': 'Full tracked days: {filled} of {total}.',
     'sleep.scaleNeedDataNow':
       'Log or finish a sleep session to show the current intelligent wake-window scale.',
     'sleep.profile': 'Profile: {name}',
@@ -308,8 +308,9 @@ const messages: Record<AppLanguage, Dictionary> = {
     'day.pillNap': 'Nap',
     'day.pillNight': 'Night',
     'day.currentWake': 'Current wake window: {duration}',
-    'day.scaleAfter3Days': 'After 3 days of data, the intelligent wake-window scale will appear.',
-    'day.scaleFilled': 'Filled: {filled} of {total} days.',
+    'day.scaleAfter3Days':
+      'After 3 full tracked days, the intelligent wake-window scale will appear.',
+    'day.scaleFilled': 'Full tracked days: {filled} of {total}.',
     'day.emptyTitle': 'No sleep records yet',
     'day.emptyText': 'Start from the big button on the Sleep tab or add sleep manually.',
     'day.rowNight': 'Night',
@@ -439,7 +440,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sticky.runningSub': '{name} · tap stop when baby wakes up',
     'sticky.hintNow': 'Time to put down · window {low}—{high} ({samples})',
     'sticky.hintUntil': 'Until sleep ~ {remaining} · window {low}—{high} ({samples})',
-    'sticky.hintNeedData': 'Intelligent scale will appear after 3 days of data',
+    'sticky.hintNeedData': 'Intelligent scale will appear after 3 full tracked days',
     'sticky.toastStopped': 'Sleep stopped',
     'sticky.toastStarted': 'Sleep started',
     'sticky.errorAlreadyRunning': 'Sleep is already running',
@@ -452,7 +453,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sticky.collapsePanel': 'Collapse panel',
     'sticky.collapse': 'Collapse',
     'sticky.needDataScale':
-      'Intelligent scale will appear after 3 days of data ({filled}/{total}).',
+      'Intelligent scale will appear after 3 full tracked days ({filled}/{total}).',
 
     'indicator.wake.tooEarly': 'Too early',
     'indicator.wake.optimal': 'Optimal',
