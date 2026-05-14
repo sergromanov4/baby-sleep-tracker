@@ -1,8 +1,8 @@
 ﻿'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import ActiveChildGate from '@/components/gates/ActiveChildGate';
-import { SleepingBabyArt } from '@/components/illustrations/Illustrations';
+import { AwakeBabyArt, SleepingBabyArt } from '@/components/illustrations/Illustrations';
 import WakeWindowIndicator from '@/components/indicators/WakeWindowIndicator';
 import SleepDurationIndicator from '@/components/indicators/SleepDurationIndicator';
 import AppSelect from '@/components/forms/AppSelect';
@@ -10,6 +10,7 @@ import {
   computeWakeWindowModel,
   inferSleepKindByTime,
   getRunningSleepSession,
+  listSleepSessionsInRange,
   startSleepSession,
   stopSleepSession,
 } from '@/lib/repo';
@@ -17,6 +18,7 @@ import { getSleepErrorCode } from '@/lib/sleepRules';
 import type { Child, SleepKind, SleepSession } from '@/lib/types';
 import { useToast } from '@/components/feedback/useToast';
 import { useI18n } from '@/lib/i18n';
+import { endOfDayMs, formatTime, startOfDayMs, toYmd } from '@/lib/time';
 
 export default function SleepPage() {
   return <ActiveChildGate>{(child) => <SleepScreen child={child} />}</ActiveChildGate>;
@@ -32,24 +34,42 @@ function SleepScreen({ child }: { child: Child }) {
   const [wwHigh, setWwHigh] = useState<number>(110 * 60 * 1000);
   const [wwSamples, setWwSamples] = useState<number>(0);
   const [wwDaysWithData, setWwDaysWithData] = useState<number>(0);
+  const [todayItems, setTodayItems] = useState<SleepSession[]>([]);
   const { show, Toast } = useToast();
   const { t, formatDurationValue } = useI18n();
+  const todayYmd = useMemo(() => toYmd(new Date(now)), [now]);
+
+  const refreshTodayItems = useCallback(async () => {
+    const today = new Date();
+    const list = await listSleepSessionsInRange(child.id, startOfDayMs(today), endOfDayMs(today));
+    setTodayItems(list);
+  }, [child.id]);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       const r = await getRunningSleepSession(child.id);
+      if (cancelled) return;
       setRunning(r ?? null);
       if (r) setKind(r.kind);
       else setKind(inferSleepKindByTime(Date.now()));
 
       const ww = await computeWakeWindowModel(child.id, 7);
+      if (cancelled) return;
       setWwLow(ww.low);
       setWwHigh(ww.high);
       setWwSamples(ww.sampleSize);
       setWwDaysWithData(ww.daysWithData);
       setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
+
+      await refreshTodayItems();
     })();
-  }, [child.id]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [child.id, refreshTodayItems, todayYmd]);
 
   const sinceWake = useMemo(
     () => (wakeStart ? Math.max(0, now - wakeStart) : null),
@@ -139,6 +159,7 @@ function SleepScreen({ child }: { child: Child }) {
                 if (!running) {
                   const session = await startSleepSession({ childId: child.id, kind: activeKind });
                   setRunning(session);
+                  await refreshTodayItems();
                   show(t('sleep.toastStarted'));
                 } else {
                   await stopSleepSession({ sessionId: running.id });
@@ -149,6 +170,7 @@ function SleepScreen({ child }: { child: Child }) {
                   setWwSamples(ww.sampleSize);
                   setWwDaysWithData(ww.daysWithData);
                   setWakeStart(ww.lastWakeMs !== null ? Date.now() - ww.lastWakeMs : null);
+                  await refreshTodayItems();
                   show(t('sleep.toastStopped'));
                 }
               } catch (error: unknown) {
@@ -278,9 +300,185 @@ function SleepScreen({ child }: { child: Child }) {
 
           <div className="small">{t('sleep.profile', { name: child.name })}</div>
         </div>
+
+        <TodayDayBlocks child={child} sessions={todayItems} now={now} />
       </div>
 
       {Toast}
+    </>
+  );
+}
+
+function TodayDayBlocks({
+  child,
+  sessions,
+  now,
+}: {
+  child: Child;
+  sessions: SleepSession[];
+  now: number;
+}) {
+  const { t, formatDurationValue } = useI18n();
+  const dayStart = useMemo(() => startOfDayMs(new Date(now)), [now]);
+  const dayEnd = useMemo(() => endOfDayMs(new Date(now)), [now]);
+
+  const rows = useMemo(() => {
+    return sessions
+      .map((session) => {
+        const end = session.end ?? now;
+        const startClamped = Math.max(session.start, dayStart);
+        const endClamped = Math.min(end, dayEnd, now);
+        return {
+          ...session,
+          startClamped,
+          endClamped,
+          dur: Math.max(0, endClamped - startClamped),
+        };
+      })
+      .filter((session) => session.dur > 0)
+      .sort((a, b) => a.startClamped - b.startClamped);
+  }, [sessions, now, dayStart, dayEnd]);
+
+  const summary = useMemo(() => {
+    let total = 0;
+    let nap = 0;
+    let night = 0;
+
+    for (const session of rows) {
+      total += session.dur;
+      if (session.kind === 'night') night += session.dur;
+      else nap += session.dur;
+    }
+
+    return { total, nap, night };
+  }, [rows]);
+
+  const rowsNewestFirst = useMemo(
+    () => [...rows].sort((a, b) => b.startClamped - a.startClamped),
+    [rows],
+  );
+
+  const wakeWindows = useMemo(() => {
+    const windows: Array<{ from: number; to: number; dur: number; active: boolean }> = [];
+    const wakeEnd = Math.min(now, dayEnd);
+    let cursor = dayStart;
+
+    for (const session of rows) {
+      if (session.startClamped > cursor) {
+        windows.push({
+          from: cursor,
+          to: session.startClamped,
+          dur: session.startClamped - cursor,
+          active: false,
+        });
+      }
+      cursor = Math.max(cursor, session.endClamped);
+    }
+
+    if (cursor < wakeEnd) {
+      windows.push({ from: cursor, to: wakeEnd, dur: wakeEnd - cursor, active: true });
+    }
+
+    return windows;
+  }, [rows, now, dayStart, dayEnd]);
+
+  const wakeWindowsNewestFirst = useMemo(
+    () => [...wakeWindows].sort((a, b) => b.to - a.to),
+    [wakeWindows],
+  );
+
+  return (
+    <>
+      <div className="card stack">
+        <div className="row" style={{ justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: 900 }}>{t('sleep.todayTitle')}</div>
+            <div className="small">{child.name}</div>
+          </div>
+        </div>
+
+        <div className="row" style={{ justifyContent: 'space-between', marginTop: 6 }}>
+          <div className="pill">
+            {t('day.pillSleep')}: {formatDurationValue(summary.total)}
+          </div>
+          <div className="pill">
+            {t('day.pillNap')}: {formatDurationValue(summary.nap)}
+          </div>
+          <div className="pill">
+            {t('day.pillNight')}: {formatDurationValue(summary.night)}
+          </div>
+        </div>
+
+        <div className="list">
+          {rows.length === 0 ? (
+            <div className="empty">
+              <div className="emptyTitle">{t('day.emptyTitle')}</div>
+              <div className="emptyText">{t('day.emptyText')}</div>
+            </div>
+          ) : null}
+
+          {rowsNewestFirst.map((session) => (
+            <div key={session.id} className="listItem">
+              <div>
+                <div className="listItemTitle">
+                  {session.kind === 'night' ? t('day.rowNight') : t('day.rowNap')}
+                </div>
+                <div className="listItemSub">
+                  {formatTime(session.startClamped)} —{' '}
+                  {session.end ? formatTime(session.endClamped) : '…'} ·{' '}
+                  {formatDurationValue(session.dur)}
+                </div>
+              </div>
+              <div className={`pill ${session.kind === 'night' ? 'pillNight' : 'pillNap'}`}>
+                {session.kind === 'night' ? t('sleep.kindNight') : t('sleep.kindNap')}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        {wakeWindows.length > 0 ? (
+          <>
+            <div className="heroRow" style={{ marginBottom: 6 }}>
+              <div className="heroArt" aria-hidden>
+                <AwakeBabyArt />
+              </div>
+              <div>
+                <div style={{ fontWeight: 900 }}>{t('day.wakeWindows')}</div>
+                <div className="small">{t('day.wakeWindowsSub')}</div>
+              </div>
+            </div>
+            <div className="wakeWindowsList">
+              {wakeWindowsNewestFirst.map((windowData) => (
+                <div className="wakeWindowsRow" key={`${windowData.from}-${windowData.to}`}>
+                  <div>
+                    <div className="wakeWindowsTime">
+                      {formatTime(windowData.from)} — {formatTime(windowData.to)}
+                    </div>
+                    {windowData.active ? (
+                      <div className="small" style={{ marginTop: 2 }}>
+                        {t('sleep.wakeNow')}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="wakeWindowsDur">{formatDurationValue(windowData.dur)}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="heroRow">
+            <div className="heroArt" aria-hidden>
+              <AwakeBabyArt />
+            </div>
+            <div>
+              <div style={{ fontWeight: 900 }}>{t('day.wakeWindowsEmptyTitle')}</div>
+              <div className="small">{t('day.wakeWindowsEmptyText')}</div>
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }

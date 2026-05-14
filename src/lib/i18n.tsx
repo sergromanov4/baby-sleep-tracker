@@ -66,6 +66,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleNeedDataNow':
       'Запишите или завершите сон, чтобы показать текущую интеллектуальную шкалу бодрствования.',
     'sleep.profile': 'Профиль: {name}',
+    'sleep.todayTitle': 'Сегодня',
 
     'day.header': 'День',
     'day.rangeLast24Title': 'Последние 24 часа',
@@ -298,6 +299,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleNeedDataNow':
       'Log or finish a sleep session to show the current intelligent wake-window scale.',
     'sleep.profile': 'Profile: {name}',
+    'sleep.todayTitle': 'Today',
 
     'day.header': 'Day',
     'day.rangeLast24Title': 'Last 24 hours',
@@ -529,6 +531,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleNeedDataNow':
       "Enregistrez ou terminez un sommeil pour afficher l'echelle intelligente actuelle d'eveil.",
     'sleep.profile': 'Profil : {name}',
+    'sleep.todayTitle': "Aujourd'hui",
 
     'day.header': 'Journee',
     'day.rangeLast24Title': 'Dernieres 24 heures',
@@ -763,6 +766,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleNeedDataNow':
       'Erfasse oder beende einen Schlaf, um die aktuelle intelligente Wachfenster-Skala anzuzeigen.',
     'sleep.profile': 'Profil: {name}',
+    'sleep.todayTitle': 'Heute',
 
     'day.header': 'Tag',
     'day.rangeLast24Title': 'Letzte 24 Stunden',
@@ -997,6 +1001,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleNeedDataNow':
       'Registra o finaliza un sueno para mostrar la escala inteligente actual de vigilia.',
     'sleep.profile': 'Perfil: {name}',
+    'sleep.todayTitle': 'Hoy',
 
     'day.header': 'Dia',
     'day.rangeLast24Title': 'Ultimas 24 horas',
@@ -1230,6 +1235,7 @@ const messages: Record<AppLanguage, Dictionary> = {
     'sleep.scaleFilled': '已填写：{filled}/{total} 天。',
     'sleep.scaleNeedDataNow': '请记录或结束一次睡眠，以显示当前智能清醒刻度。',
     'sleep.profile': '档案：{name}',
+    'sleep.todayTitle': '今天',
 
     'day.header': '白天',
     'day.rangeLast24Title': '最近 24 小时',
